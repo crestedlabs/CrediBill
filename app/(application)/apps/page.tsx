@@ -1,3 +1,4 @@
+import AppsContent from "@/components/apps-content";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <></>;
+  return <AppsContent />;
 }

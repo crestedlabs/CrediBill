@@ -1,3 +1,4 @@
+import InvoicesContent from "@/components/invoices-content";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -8,5 +9,5 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <></>;
+  return <InvoicesContent />;
 }
