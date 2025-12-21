@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CrediBill ⚡️
 
-## Getting Started
+**CrediBill** is a lightweight subscription management and billing engine built for African SaaS applications. It provides a unified API and dashboard so multiple SaaS apps can outsource billing, invoicing, and subscription lifecycle logic to a single, provider-agnostic service.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🔍 What is CrediBill
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+CrediBill is a multi-tenant billing platform that:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Centralizes subscription and invoice management for multiple SaaS apps (each app is isolated by `appId`).
+- Abstracts payment provider complexity behind **payment adapter** interfaces so apps never need to integrate payment SDKs directly.
+- Exposes a simple external API for apps and an internal dashboard for operators.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## 💡 Why CrediBill exists
 
-To learn more about Next.js, take a look at the following resources:
+Many African SaaS teams spend time integrating and maintaining multiple local and global payment providers. CrediBill removes that burden by providing a single, consistent billing API and dashboard that handles provider differences and regional payments complexities.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ✅ Core features
 
-## Deploy on Vercel
+- Multi-tenant architecture (appId-based isolation)
+- Customer management across apps
+- Subscription lifecycle management with the canonical states: `TRIALING` → `ACTIVE` → `PAST_DUE` → `CANCELED` → `EXPIRED`
+- Free trial support with automatic expiration
+- Invoice generation and storage
+- Provider-agnostic payment adapter system for adding new African/local providers
+- Unified webhook handling and reconciliation
+- Internal dashboard and public API for SaaS apps
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🏗️ High-level architecture
+
+- Frontend: Next.js (App Router) dashboard + public API surface
+- Backend & Data: Convex for functions and persistent storage
+- Authentication: Clerk for user and operator auth
+- Payment adapters: pluggable modules that map provider-specific events to the canonical subscription model
+- Webhooks: single endpoint to ingest provider events and normalize updates into internal state
+
+---
+
+## 🧰 Tech stack
+
+- **Next.js (App Router)** — dashboard & API
+- **React + TypeScript** — UI and type safety
+- **Convex** — backend functions and database
+- **Clerk** — authentication
+- **Tailwind CSS** + **shadcn/ui** — design system / components
+- **Sonner** — toast notifications
+
+---
+
+## ⚠️ Project status
+
+**Early-stage / WIP** — CrediBill is in active development. Core concepts and initial integrations are being implemented. Expect rapid changes to APIs and data models.
+
+Contributions, design feedback, and bug reports are welcome.
+
+---
+
+## Contributing
+
+If you'd like to contribute, please open issues or pull requests and describe the use case you want to support (tenant patterns, providers, edge-cases).
+
+---
+
+## License
+
+This repository is available under an open source license (see `LICENSE` if present).
