@@ -15,11 +15,10 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select";
-import { TabsContent } from "@/components/ui/tabs";
-
+import { Save } from "lucide-react";
 export default function SettingsGeneral() {
   return (
-    <TabsContent value="general" className="space-y-6 m-0">
+    <div className="space-y-6">
       <Card className="border border-slate-200">
         <CardHeader>
           <CardTitle className="text-lg">General Settings</CardTitle>
@@ -28,8 +27,8 @@ export default function SettingsGeneral() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
-          <div className="space-y-2 md:grid md:grid-cols-3 md:items-start md:gap-4 md:space-y-0">
-            <div className="md:col-span-2">
+          <div className="space-y-2 md:grid md:grid-cols-5 md:items-start md:gap-4 md:space-y-0">
+            <div className="md:col-span-3">
               <label className="text-base font-medium text-slate-900">
                 Billing Currency
               </label>
@@ -38,24 +37,26 @@ export default function SettingsGeneral() {
                 invoices.
               </p>
             </div>
-            <Select defaultValue="ugx">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="ugx">UGX</SelectItem>
-                  <SelectItem value="kex">KEX </SelectItem>
-                  <SelectItem value="tzs">TZS </SelectItem>
-                  <SelectItem value="frc">RWF</SelectItem>
-                  <SelectItem value="usd">USD</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <div className="md:col-span-2">
+              <Select defaultValue="ugx">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="ugx">UGX</SelectItem>
+                    <SelectItem value="kex">KEX </SelectItem>
+                    <SelectItem value="tzs">TZS </SelectItem>
+                    <SelectItem value="frc">RWF</SelectItem>
+                    <SelectItem value="usd">USD</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2 md:grid md:grid-cols-3 md:items-start md:gap-4 md:space-y-0">
-            <div className="md:col-span-2">
+          <div className="space-y-2 md:grid md:grid-cols-5 md:items-start md:gap-4 md:space-y-0">
+            <div className="md:col-span-3">
               <label className="text-base font-medium text-slate-900">
                 Time Zone
               </label>
@@ -64,21 +65,23 @@ export default function SettingsGeneral() {
                 dates.
               </p>
             </div>
-            <Select defaultValue="eat">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="eat">EAT (GMT+3)</SelectItem>
-                  <SelectItem value="cat">CAT (GMT+2)</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <div className="md:col-span-2">
+              <Select defaultValue="eat">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="eat">EAT (GMT+3)</SelectItem>
+                    <SelectItem value="cat">CAT (GMT+2)</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="space-y-2 md:grid md:grid-cols-3 md:items-start md:gap-4 md:space-y-0">
-            <div className="md:col-span-2">
+          <div className="space-y-2 md:grid md:grid-cols-5 md:items-start md:gap-4 md:space-y-0">
+            <div className="md:col-span-3">
               <label className="text-base font-medium text-slate-900">
                 Language
               </label>
@@ -87,27 +90,31 @@ export default function SettingsGeneral() {
                 communications.
               </p>
             </div>
-            <Select defaultValue="en">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="en">English</SelectItem>
-                  <SelectItem value="kis">Kiswahili</SelectItem>
-                  <SelectItem value="fr">Français</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
+            <div className="md:col-span-2">
+              <Select defaultValue="en">
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="kis">Kiswahili</SelectItem>
+                    <SelectItem value="fr">Français</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <Separator />
 
           <div className="flex justify-end">
-            <Button>Save Changes</Button>
+            <Button className="h-10">
+              <Save className="mr-2 h-4 w-4" />Save Changes
+            </Button>
           </div>
         </CardContent>
       </Card>
-    </TabsContent>
+    </div>
   );
 }

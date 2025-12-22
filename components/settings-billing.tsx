@@ -17,7 +17,7 @@ import {
   SelectGroup,
 } from "@/components/ui/select";
 import { TabsContent } from "@/components/ui/tabs";
-import { File } from "lucide-react";
+import { File, Save } from "lucide-react";
 
 export default function SettingsBilling() {
   return (
@@ -82,7 +82,7 @@ export default function SettingsBilling() {
           <Separator />
 
           <Button className="h-10">
-            <File /> Save Changes
+            <Save className="mr-2 h-4 w-4" /> Save Changes
           </Button>
         </CardContent>
       </Card>

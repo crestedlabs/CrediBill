@@ -66,7 +66,7 @@ export default function SettingsTeam() {
             {mockTeamMembers.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3"
+                className="rounded-lg border border-slate-200 p-3 space-y-3 md:space-y-0 md:flex md:items-center md:justify-between md:gap-3"
               >
                 <div className="flex-1 space-y-1">
                   <p className="text-base font-medium text-slate-900">
@@ -75,9 +75,9 @@ export default function SettingsTeam() {
                   <p className="text-sm text-slate-600">{member.email}</p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between gap-3 md:justify-end">
                   <Select defaultValue={member.role.toLowerCase()}>
-                    <SelectTrigger className="w-28">
+                    <SelectTrigger className="w-full md:w-28">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -94,7 +94,7 @@ export default function SettingsTeam() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 text-red-600 hover:bg-red-50"
+                      className="h-8 w-8 p-0 text-red-600 hover:bg-red-50 shrink-0"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

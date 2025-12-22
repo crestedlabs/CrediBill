@@ -149,7 +149,7 @@ export default function SettingsWebhooks() {
                 className="space-y-2 rounded-lg border border-slate-200 p-3"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <code className="text-sm text-slate-600">
+                  <code className="text-sm text-slate-600 truncate flex-1 min-w-0">
                     {webhook.url}
                   </code>
                   <DropdownMenu>

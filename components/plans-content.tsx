@@ -18,69 +18,38 @@ const mockPlans = [
   {
     id: "plan_1",
     name: "Starter",
-    price: 49,
+    price: 180000,
     billingCadence: "monthly",
     status: "Active",
-    isPopular: false,
-    features: [
-      "Up to 10,000 requests/month",
-      "Basic analytics",
-      "Community support",
-      "1 API key",
-    ],
     activeSubscribers: 124,
-    totalRevenue: 6076,
+    totalRevenue: 22273000,
   },
   {
     id: "plan_2",
     name: "Professional",
-    price: 199,
+    price: 730000,
     billingCadence: "monthly",
     status: "Active",
-    isPopular: true,
-    features: [
-      "Up to 500,000 requests/month",
-      "Advanced analytics & reporting",
-      "Priority email support",
-      "10 API keys",
-      "Webhooks & integrations",
-    ],
     activeSubscribers: 287,
-    totalRevenue: 57113,
+    totalRevenue: 209510000,
   },
   {
     id: "plan_3",
     name: "Enterprise",
-    price: 999,
+    price: 3660000,
     billingCadence: "monthly",
     status: "Active",
-    isPopular: false,
-    features: [
-      "Unlimited requests",
-      "Custom analytics",
-      "24/7 phone & email support",
-      "Unlimited API keys",
-      "Custom integrations",
-      "Dedicated account manager",
-    ],
     activeSubscribers: 12,
-    totalRevenue: 11988,
+    totalRevenue: 43920000,
   },
   {
     id: "plan_4",
     name: "Legacy Yearly",
-    price: 899,
+    price: 3294000,
     billingCadence: "yearly",
     status: "Archived",
-    isPopular: false,
-    features: [
-      "Up to 200,000 requests/month",
-      "Basic analytics",
-      "Email support",
-      "5 API keys",
-    ],
     activeSubscribers: 8,
-    totalRevenue: 7192,
+    totalRevenue: 26352000,
   },
 ];
 
@@ -90,39 +59,46 @@ export default function PlansContent() {
 
   if (isEmpty) {
     return (
-      <div className="min-h-screen space-y-6 bg-white px-2 py-6 md:px-8 md:py-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Plans</h1>
-            <p className="text-sm text-slate-600">
-              Manage subscription plans for this app
-            </p>
+      <div className="min-h-screen bg-slate-50">
+        {/* Header */}
+        <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-900">Plans</h1>
+              <p className="text-sm text-slate-600">
+                Manage subscription plans for this app
+              </p>
+            </div>
+            <Button className="w-full md:w-auto h-11">
+              <Plus className="mr-2 h-4 w-4" />
+              Create Plan
+            </Button>
           </div>
-          <Button className="w-full md:w-auto">
-            <Plus className="mr-2 h-4 w-4" />
-            Create Plan
-          </Button>
         </div>
 
-        <Separator className="my-2" />
-
-        <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-16 text-center md:py-24">
-          <div className="mx-auto max-w-sm space-y-4">
-            <div className="flex justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
-                <Plus className="h-8 w-8 text-slate-600" />
+        {/* Content */}
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-24">
+              <div className="mx-auto max-w-sm space-y-4">
+                <div className="flex justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
+                    <Plus className="h-8 w-8 text-slate-600" />
+                  </div>
+                </div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  No plans yet
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Create your first subscription plan to start accepting
+                  payments.
+                </p>
+                <Button className="w-full">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create your first plan
+                </Button>
               </div>
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              No plans yet
-            </h2>
-            <p className="text-sm text-slate-600">
-              Create your first subscription plan to start accepting payments.
-            </p>
-            <Button className="w-full">
-              <Plus className="mr-2 h-4 w-4" />
-              Create your first plan
-            </Button>
           </div>
         </div>
       </div>
@@ -130,32 +106,38 @@ export default function PlansContent() {
   }
 
   return (
-    <div className="min-h-screen space-y-6 bg-white px-2 py-6 md:px-8 md:py-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Plans</h1>
-          <p className="text-sm text-slate-600">
-            Manage subscription plans for this app
-          </p>
+    <div className="min-h-screen bg-slate-50">
+      {/* Header */}
+      <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Plans</h1>
+            <p className="text-sm text-slate-600">
+              Manage subscription plans for this app
+            </p>
+          </div>
+          <Button className="w-full md:w-auto h-10">
+            <Plus className="mr-2 h-4 w-4" />
+            Create Plan
+          </Button>
         </div>
-        <Button className="w-full md:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          Create Plan
-        </Button>
       </div>
 
-      <Separator className="my-2" />
+      {/* Content */}
+      <div className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {plans.map((plan) => (
+              <PlanCard key={plan.id} plan={plan} />
+            ))}
+          </div>
 
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {plans.map((plan) => (
-          <PlanCard key={plan.id} plan={plan} />
-        ))}
-      </div>
-
-      <div className="flex items-center justify-center pt-4">
-        <p className="text-sm text-slate-600">
-          {plans.length} plan{plans.length !== 1 ? "s" : ""} active
-        </p>
+          <div className="flex items-center justify-center pt-4">
+            <p className="text-sm text-slate-600">
+              {plans.length} plan{plans.length !== 1 ? "s" : ""} active
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -166,7 +148,7 @@ function PlanCard({ plan }: { plan: (typeof mockPlans)[0] }) {
 
   return (
     <Card
-      className={`border border-slate-200 transition-all hover:border-slate-300 hover:shadow-md ${
+      className={`border border-slate-200 bg-white transition-all hover:border-slate-300 hover:shadow-md ${
         isArchived ? "opacity-75" : ""
       }`}
     >
@@ -175,11 +157,12 @@ function PlanCard({ plan }: { plan: (typeof mockPlans)[0] }) {
           <div className="flex-1">
             <CardTitle className="text-lg">{plan.name}</CardTitle>
             <div className="mt-2 flex items-baseline gap-1">
-              <span className="text-3xl font-bold text-slate-900">
-                ${plan.price}
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">UGX</span>
+              <span className="text-3xl font-bold text-blue-600">
+                {plan.price >= 1000000 ? `${(plan.price / 1000000).toFixed(1)}M` : `${(plan.price / 1000).toFixed(0)}K`}
               </span>
               <span className="text-sm text-slate-600">
-                /{plan.billingCadence === "monthly" ? "month" : "year"}
+                /{plan.billingCadence === "monthly" ? "mo" : "yr"}
               </span>
             </div>
           </div>
@@ -207,7 +190,7 @@ function PlanCard({ plan }: { plan: (typeof mockPlans)[0] }) {
             <p className="text-xs font-semibold uppercase text-slate-500">
               Active Subscribers
             </p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">
+            <p className="mt-1 text-2xl font-bold text-emerald-600">
               {plan.activeSubscribers}
             </p>
           </div>
@@ -216,9 +199,12 @@ function PlanCard({ plan }: { plan: (typeof mockPlans)[0] }) {
             <p className="text-xs font-semibold uppercase text-slate-500">
               Revenue
             </p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">
-              ${(plan.totalRevenue / 1000).toFixed(1)}k
-            </p>
+            <div className="flex items-baseline gap-1">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">UGX</span>
+              <span className="text-2xl font-bold text-green-600">
+                {plan.totalRevenue >= 1000000 ? `${(plan.totalRevenue / 1000000).toFixed(1)}M` : `${(plan.totalRevenue / 1000).toFixed(0)}K`}
+              </span>
+            </div>
           </div>
         </div>
       </CardContent>

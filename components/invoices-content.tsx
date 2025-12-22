@@ -164,35 +164,41 @@ export default function InvoicesContent() {
 
   if (isEmpty) {
     return (
-      <div className="min-h-screen space-y-6 bg-white px-2 py-6 md:px-8 md:py-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold">Invoices</h1>
-            <p className="text-sm text-slate-600">
-              Manage and track all billing invoices
-            </p>
+      <div className="min-h-screen bg-slate-50">
+        {/* Header */}
+        <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-900">Invoices</h1>
+              <p className="text-sm text-slate-600">
+                Manage and track all billing invoices
+              </p>
+            </div>
+            <Button className="bg-white border border-slate-200 text-slate-900 hover:bg-slate-50">
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
           </div>
-          <Button>
-            <Download className="mr-2 h-4 w-4" />
-            Export
-          </Button>
         </div>
 
-        <Separator className="my-2" />
-
-        <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-16 text-center md:py-24">
-          <div className="mx-auto max-w-sm space-y-4">
-            <div className="flex justify-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
-                <Download className="h-8 w-8 text-slate-600" />
+        {/* Content */}
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-24">
+              <div className="mx-auto max-w-sm space-y-4">
+                <div className="flex justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
+                    <Download className="h-8 w-8 text-slate-600" />
+                  </div>
+                </div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  No invoices yet
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Invoices will appear here once billing activity occurs.
+                </p>
               </div>
             </div>
-            <h2 className="text-lg font-semibold text-slate-900">
-              No invoices yet
-            </h2>
-            <p className="text-sm text-slate-600">
-              Invoices will appear here once billing activity occurs.
-            </p>
           </div>
         </div>
       </div>
@@ -200,189 +206,196 @@ export default function InvoicesContent() {
   }
 
   return (
-    <div className="min-h-screen space-y-6 bg-white px-2 py-6 md:px-8 md:py-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Invoices</h1>
-          <p className="text-sm text-slate-600">
-            Manage and track all billing invoices
-          </p>
+    <div className="min-h-screen bg-slate-50">
+      {/* Header */}
+      <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Invoices</h1>
+            <p className="text-sm text-slate-600">
+              Manage and track all billing invoices
+            </p>
+          </div>
+          <Button className="bg-white border border-slate-200 text-slate-900 hover:bg-slate-50">
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
         </div>
-        <Button>
-          <Download className="mr-2 h-4 w-4" />
-          Export
-        </Button>
       </div>
 
-      <Separator className="my-2" />
+      {/* Content */}
+      <div className="px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Search invoice ID or customer..."
+                  className="pl-10 bg-white"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              placeholder="Search invoice ID or customer..."
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full md:w-40 bg-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="All">All statuses</SelectItem>
+                    <SelectItem value="Paid">Paid</SelectItem>
+                    <SelectItem value="Open">Open</SelectItem>
+                    <SelectItem value="Failed">Failed</SelectItem>
+                    <SelectItem value="Refunded">Refunded</SelectItem>
+                    <SelectItem value="Void">Void</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+
+              {(searchQuery || statusFilter !== "All") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setStatusFilter("All");
+                  }}
+                  className="bg-white border border-slate-200"
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Clear
+                </Button>
+              )}
+            </div>
           </div>
 
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-full md:w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="All">All statuses</SelectItem>
-                <SelectItem value="Paid">Paid</SelectItem>
-                <SelectItem value="Open">Open</SelectItem>
-                <SelectItem value="Failed">Failed</SelectItem>
-                <SelectItem value="Refunded">Refunded</SelectItem>
-                <SelectItem value="Void">Void</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-
-          {(searchQuery || statusFilter !== "All") && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setSearchQuery("");
-                setStatusFilter("All");
-              }}
-            >
-              <X className="mr-2 h-4 w-4" />
-              Clear
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="hidden md:block">
-        <Card className="border border-slate-200">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b border-slate-200 bg-slate-50">
-                  <tr className="text-left text-xs font-semibold text-slate-700">
-                    <th className="px-4 py-3">Invoice ID</th>
-                    <th className="px-4 py-3">Customer</th>
-                    <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Payment Method</th>
-                    <th className="px-4 py-3">Issued Date</th>
-                    <th className="px-4 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredInvoices.map((invoice, idx) => {
-                    const colors =
-                      statusConfig[invoice.status] || statusConfig.Open;
-                    return (
-                      <tr
-                        key={invoice.id}
-                        className={`text-sm transition-colors hover:bg-slate-50 ${
-                          idx !== filteredInvoices.length - 1
-                            ? "border-b border-slate-200"
-                            : ""
-                        }`}
-                      >
-                        <td className="px-4 py-4">
-                          <p className="font-mono font-medium text-slate-900">
-                            {invoice.id}
-                          </p>
-                        </td>
-                        <td className="px-4 py-4 text-slate-600">
-                          {invoice.customer}
-                        </td>
-                        <td className="px-4 py-4 font-semibold text-slate-900">
-                          ${invoice.amount.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-4">
-                          <Badge className={`${colors.badge}`}>
-                            {invoice.status}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-4 text-xs text-slate-500">
-                          {invoice.paymentMethod}
-                        </td>
-                        <td className="px-4 py-4 text-slate-600">
-                          {invoice.issuedDate}
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <InvoiceActionMenu
-                            invoice={invoice}
-                            onViewDetails={() => openDetails(invoice)}
-                          />
-                        </td>
+          <div className="hidden md:block">
+            <Card className="border border-slate-200 bg-white">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="border-b border-slate-200 bg-slate-50">
+                      <tr className="text-left text-xs font-semibold text-slate-700">
+                        <th className="px-4 py-3">Invoice ID</th>
+                        <th className="px-4 py-3">Customer</th>
+                        <th className="px-4 py-3">Amount</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Payment Method</th>
+                        <th className="px-4 py-3">Issued Date</th>
+                        <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="space-y-3 md:hidden">
-        {filteredInvoices.map((invoice) => {
-          const colors = statusConfig[invoice.status] || statusConfig.Open;
-          return (
-            <Card
-              key={invoice.id}
-              className={`border border-slate-200 ${colors.bg} cursor-pointer transition-all hover:border-slate-300`}
-              onClick={() => openDetails(invoice)}
-            >
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <p className="font-mono text-sm font-semibold text-slate-900">
-                        {invoice.id}
-                      </p>
-                      <Badge className={`${colors.badge}`}>
-                        {invoice.status}
-                      </Badge>
-                    </div>
-
-                    <p className="text-sm text-slate-600">{invoice.customer}</p>
-
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold text-slate-900">
-                        ${invoice.amount.toFixed(2)}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        {invoice.paymentMethod} • {invoice.issuedDate}
-                      </p>
-                    </div>
-                  </div>
-
-                  <InvoiceActionMenu
-                    invoice={invoice}
-                    onViewDetails={() => openDetails(invoice)}
-                  />
+                    </thead>
+                    <tbody>
+                      {filteredInvoices.map((invoice, idx) => {
+                        const colors =
+                          statusConfig[invoice.status] || statusConfig.Open;
+                        return (
+                          <tr
+                            key={invoice.id}
+                            className={`text-sm transition-colors hover:bg-slate-50 ${
+                              idx !== filteredInvoices.length - 1
+                                ? "border-b border-slate-200"
+                                : ""
+                            }`}
+                          >
+                            <td className="px-4 py-4">
+                              <p className="font-mono font-medium text-slate-900">
+                                {invoice.id}
+                              </p>
+                            </td>
+                            <td className="px-4 py-4 text-slate-600">
+                              {invoice.customer}
+                            </td>
+                            <td className="px-4 py-4 font-semibold text-slate-900">
+                              ${invoice.amount.toFixed(2)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <Badge className={`${colors.badge}`}>
+                                {invoice.status}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-4 text-xs text-slate-500">
+                              {invoice.paymentMethod}
+                            </td>
+                            <td className="px-4 py-4 text-slate-600">
+                              {invoice.issuedDate}
+                            </td>
+                            <td className="px-4 py-4 text-right">
+                              <InvoiceActionMenu
+                                invoice={invoice}
+                                onViewDetails={() => openDetails(invoice)}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          </div>
 
-      <div className="flex items-center justify-center pt-4">
-        <p className="text-sm text-slate-600">
-          Showing {filteredInvoices.length} of {mockInvoices.length} invoice
-          {filteredInvoices.length !== 1 ? "s" : ""}
-        </p>
-      </div>
+          <div className="space-y-3 md:hidden">
+            {filteredInvoices.map((invoice) => {
+              const colors = statusConfig[invoice.status] || statusConfig.Open;
+              return (
+                <Card
+                  key={invoice.id}
+                  className={`border border-slate-200 bg-white cursor-pointer transition-all hover:border-slate-300`}
+                  onClick={() => openDetails(invoice)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <p className="font-mono text-sm font-semibold text-slate-900">
+                            {invoice.id}
+                          </p>
+                          <Badge className={`${colors.badge}`}>
+                            {invoice.status}
+                          </Badge>
+                        </div>
 
-      <InvoiceDetailsSheet
-        invoice={selectedInvoice}
-        open={detailsOpen}
-        onOpenChange={setDetailsOpen}
-      />
+                        <p className="text-sm text-slate-600">{invoice.customer}</p>
+
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-slate-900">
+                            ${invoice.amount.toFixed(2)}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {invoice.paymentMethod} • {invoice.issuedDate}
+                          </p>
+                        </div>
+                      </div>
+
+                      <InvoiceActionMenu
+                        invoice={invoice}
+                        onViewDetails={() => openDetails(invoice)}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-center pt-4">
+            <p className="text-sm text-slate-600">
+              Showing {filteredInvoices.length} of {mockInvoices.length} invoice
+              {filteredInvoices.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+
+          <InvoiceDetailsSheet
+            invoice={selectedInvoice}
+            open={detailsOpen}
+            onOpenChange={setDetailsOpen}
+          />
+        </div>
+      </div>
     </div>
   );
 }
