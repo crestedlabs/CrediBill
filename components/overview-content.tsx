@@ -31,7 +31,7 @@ type SubscriptionStatus =
 const mockSummaryData = [
   {
     label: "Active Subscriptions",
-    value: "842",
+    value: "846",
     change: "+3.2%",
     icon: CheckCircle,
     iconColor: "text-emerald-600",
@@ -142,29 +142,11 @@ export default function OverviewContent() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900">Overview</h1>
-            <p className="text-sm text-slate-600">
-              Billing and subscription health at a glance
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Select defaultValue="all">
-              <SelectTrigger className="w-32 bg-white">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  <SelectItem value="all">All Apps</SelectItem>
-                  <SelectItem value="reciit">Reciit</SelectItem>
-                  <SelectItem value="votera">Votera</SelectItem>
-                  <SelectItem value="brodkast">Brodkast</SelectItem>
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Overview</h1>
+          <p className="text-sm text-slate-600">
+            Billing and subscription health at a glance
+          </p>
         </div>
       </div>
 
@@ -189,11 +171,15 @@ export default function OverviewContent() {
                               {item.currency}
                             </span>
                           )}
-                          <span className={`text-3xl font-bold ${item.valueColor}`}>
+                          <span
+                            className={`text-3xl font-bold ${item.valueColor}`}
+                          >
                             {item.currency ? item.value : item.value}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs text-slate-600">{item.change}</p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {item.change}
+                        </p>
                       </div>
                       <div
                         className={`rounded-lg bg-slate-50 p-2 ${item.iconColor}`}
@@ -218,14 +204,19 @@ export default function OverviewContent() {
               <CardContent>
                 <div className="space-y-3">
                   {mockStatusBreakdown.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between"
+                    >
                       <div className="flex items-center gap-3">
                         <div
                           className={`h-3 w-3 rounded-full ${item.color} border ${item.textColor}`}
                         ></div>
                         <div>
                           <p className="text-sm font-medium">{item.label}</p>
-                          <p className="text-xs text-slate-500">{item.status}</p>
+                          <p className="text-xs text-slate-500">
+                            {item.status}
+                          </p>
                         </div>
                       </div>
                       <p className="text-sm font-semibold">{item.count}</p>
@@ -254,8 +245,13 @@ export default function OverviewContent() {
                     </thead>
                     <tbody>
                       {mockRecentActivity.map((item, idx) => (
-                        <tr key={idx} className="border-t border-slate-200 text-sm">
-                          <td className="px-4 py-3 text-slate-600">{item.time}</td>
+                        <tr
+                          key={idx}
+                          className="border-t border-slate-200 text-sm"
+                        >
+                          <td className="px-4 py-3 text-slate-600">
+                            {item.time}
+                          </td>
                           <td className="px-4 py-3">{item.event}</td>
                           <td className="px-4 py-3 font-mono text-slate-600">
                             {item.subscription}
@@ -283,9 +279,9 @@ export default function OverviewContent() {
           {/* Footer note */}
           <div className="rounded-lg bg-white border border-slate-200 p-4">
             <p className="text-sm text-slate-700">
-              💡 <span className="font-medium">Tip:</span> Use the status breakdown
-              to identify subscriptions requiring action. Contact support for
-              billing inquiries.
+              💡 <span className="font-medium">Tip:</span> Use the status
+              breakdown to identify subscriptions requiring action. Contact
+              support for billing inquiries.
             </p>
           </div>
         </div>

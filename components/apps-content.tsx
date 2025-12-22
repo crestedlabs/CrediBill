@@ -11,12 +11,12 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Plus, Edit, Trash2, Settings } from "lucide-react";
+import { MoreVertical, Plus, Edit, Trash2 } from "lucide-react";
 
 const mockApps = [
   {
     id: "app_1",
-    name: "Main App",
+    name: "Reciit",
     appId: "pk_live_abc123def456",
     status: "Active",
     subscriptions: 284,
@@ -24,7 +24,7 @@ const mockApps = [
   },
   {
     id: "app_2",
-    name: "Marketing Hub",
+    name: "Votera",
     appId: "pk_live_xyz789uvw012",
     status: "Active",
     subscriptions: 156,
@@ -32,7 +32,7 @@ const mockApps = [
   },
   {
     id: "app_3",
-    name: "Internal Platform",
+    name: "Brodkast",
     appId: "pk_live_fgh345ijk678",
     status: "Paused",
     subscriptions: 0,
@@ -40,7 +40,7 @@ const mockApps = [
   },
   {
     id: "app_4",
-    name: "Partner Portal",
+    name: "Flenza",
     appId: "pk_live_mno901pqr234",
     status: "Active",
     subscriptions: 89,
@@ -247,10 +247,6 @@ function AppActionMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          Settings
-        </DropdownMenuItem>
         <DropdownMenuItem>
           <Edit className="mr-2 h-4 w-4" />
           Edit

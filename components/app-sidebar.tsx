@@ -38,12 +38,12 @@ const data: { apps: string[]; navItems: NavItem[] } = {
   apps: ["Reciit", "Votera", "Brodkast"],
   navItems: [
     { title: "Overview", url: "/overview", icon: Home },
-    { title: "Apps", url: "/apps", icon: Grid },
     { title: "Customers", url: "/customers", icon: Users },
     { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
     { title: "Plans", url: "/plans", icon: List },
     { title: "Invoices", url: "/invoices", icon: File },
     { title: "Settings", url: "/settings", icon: Settings },
+    { title: "Apps", url: "/apps", icon: Grid },
   ],
 };
 
