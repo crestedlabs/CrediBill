@@ -72,26 +72,24 @@ export default function AppsContent() {
 
         {/* Content */}
         <div className="px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl">
-            <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-20">
-              <div className="mx-auto max-w-sm space-y-4">
-                <div className="flex justify-center">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
-                    <Plus className="h-8 w-8 text-slate-600" />
-                  </div>
+          <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-20">
+            <div className="mx-auto max-w-sm space-y-4">
+              <div className="flex justify-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-200">
+                  <Plus className="h-8 w-8 text-slate-600" />
                 </div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  No apps yet
-                </h2>
-                <p className="text-sm text-slate-600">
-                  Create your first app to start managing subscriptions and
-                  billing.
-                </p>
-                <Button className="w-full">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create your first app
-                </Button>
               </div>
+              <h2 className="text-lg font-semibold text-slate-900">
+                No apps yet
+              </h2>
+              <p className="text-sm text-slate-600">
+                Create your first app to start managing subscriptions and
+                billing.
+              </p>
+              <Button className="w-full">
+                <Plus className="mr-2 h-4 w-4" />
+                Create your first app
+              </Button>
             </div>
           </div>
         </div>
@@ -119,7 +117,7 @@ export default function AppsContent() {
 
       {/* Content */}
       <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="space-y-6">
           <div className="hidden md:block">
             <Card className="border border-slate-200 bg-white">
               <CardContent className="p-0">

@@ -31,6 +31,8 @@ const mockCustomers = [
     plan: "Professional",
     revenue: "UGX 4.4M",
     status: "Active",
+    subscriptionId: "sub_Ja8k9abc",
+    nextBilling: "Jan 15, 2025",
     joinDate: "Dec 1, 2024",
   },
   {
@@ -40,6 +42,8 @@ const mockCustomers = [
     plan: "Starter",
     revenue: "UGX 1.6M",
     status: "Trialing",
+    subscriptionId: "sub_Tx39def",
+    nextBilling: "Trial ends Dec 28",
     joinDate: "Dec 15, 2024",
   },
   {
@@ -49,6 +53,8 @@ const mockCustomers = [
     plan: "Enterprise",
     revenue: "UGX 13.2M",
     status: "Active",
+    subscriptionId: "sub_Bx22ghi",
+    nextBilling: "Jan 10, 2025",
     joinDate: "Nov 1, 2024",
   },
   {
@@ -58,6 +64,8 @@ const mockCustomers = [
     plan: "Professional",
     revenue: "UGX 0",
     status: "Past Due",
+    subscriptionId: "sub_Dv88jkl",
+    nextBilling: "Overdue since Dec 15",
     joinDate: "Oct 15, 2024",
   },
   {
@@ -66,7 +74,9 @@ const mockCustomers = [
     email: "eve.thompson@oldclient.com",
     plan: "None",
     revenue: "UGX 8.8M",
-    status: "Churned",
+    status: "Canceled",
+    subscriptionId: "sub_Et55mno",
+    nextBilling: "Canceled Nov 20",
     joinDate: "Sep 1, 2024",
   },
 ];
@@ -75,10 +85,10 @@ const statusColors: Record<string, { badge: string; bg: string }> = {
   Active: { badge: "bg-emerald-100 text-emerald-800", bg: "bg-emerald-50" },
   Trialing: { badge: "bg-blue-100 text-blue-800", bg: "bg-blue-50" },
   "Past Due": { badge: "bg-amber-100 text-amber-800", bg: "bg-amber-50" },
-  Churned: { badge: "bg-slate-100 text-slate-800", bg: "bg-slate-50" },
+  Canceled: { badge: "bg-slate-100 text-slate-800", bg: "bg-slate-50" },
 };
 
-const filterOptions = ["All", "Active", "Trialing", "Past Due", "Churned"];
+const filterOptions = ["All", "Active", "Trialing", "Past Due", "Canceled"];
 
 export default function CustomersContent() {
   const [activeFilter, setActiveFilter] = useState("All");
@@ -106,7 +116,6 @@ export default function CustomersContent() {
 
         {/* Content */}
         <div className="px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl">
             <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-20">
               <div className="mx-auto max-w-sm space-y-4">
                 <div className="flex justify-center">
@@ -127,7 +136,6 @@ export default function CustomersContent() {
                 </Button>
               </div>
             </div>
-          </div>
         </div>
       </div>
     );
@@ -161,7 +169,7 @@ export default function CustomersContent() {
 
       {/* Content */}
       <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="space-y-6">
           <div className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -180,7 +188,7 @@ export default function CustomersContent() {
                   onClick={() => setActiveFilter(filter)}
                   className={`rounded-full px-3 py-1.5 text-sm font-medium transition-all ${
                     activeFilter === filter
-                      ? "bg-slate-900 text-white"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
                   }`}
                 >
@@ -190,115 +198,79 @@ export default function CustomersContent() {
             </div>
           </div>
 
-          <div className="hidden md:block">
-            <Card className="border border-slate-200 bg-white">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="border-b border-slate-200 bg-slate-50">
-                      <tr className="text-left text-xs font-semibold text-slate-700">
-                        <th className="px-4 py-3">Name</th>
-                        <th className="px-4 py-3">Email</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3">Plan</th>
-                        <th className="px-4 py-3">Revenue</th>
-                        <th className="px-4 py-3">Joined</th>
-                        <th className="px-4 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredCustomers.map((customer, idx) => {
-                        const colors =
-                          statusColors[customer.status] || statusColors.Active;
-                        return (
-                          <tr
-                            key={customer.id}
-                            className={`text-sm ${
-                              idx !== filteredCustomers.length - 1
-                                ? "border-b border-slate-200"
-                                : ""
-                            }`}
-                          >
-                            <td className="px-4 py-4">
+          <Card className="border border-slate-200 bg-white">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-slate-200 bg-slate-50">
+                    <tr className="text-left text-xs font-semibold text-slate-700">
+                      <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3 hidden sm:table-cell">Email</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 hidden md:table-cell">Plan</th>
+                      <th className="px-4 py-3 hidden lg:table-cell">Subscription</th>
+                      <th className="px-4 py-3 hidden lg:table-cell">Next Billing</th>
+                      <th className="px-4 py-3 hidden xl:table-cell">Revenue</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCustomers.map((customer, idx) => {
+                      const colors =
+                        statusColors[customer.status] || statusColors.Active;
+                      return (
+                        <tr
+                          key={customer.id}
+                          className={`text-sm ${
+                            idx !== filteredCustomers.length - 1
+                              ? "border-b border-slate-200"
+                              : ""
+                          }`}
+                        >
+                          <td className="px-4 py-4">
+                            <div>
                               <p className="font-medium text-slate-900">
                                 {customer.name}
                               </p>
-                            </td>
-                            <td className="px-4 py-4 text-slate-600">
-                              {customer.email}
-                            </td>
-                            <td className="px-4 py-4">
-                              <Badge className={`${colors.badge}`}>
-                                {customer.status}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-4 text-slate-600">
-                              {customer.plan}
-                            </td>
-                            <td className="px-4 py-4 font-semibold text-slate-900">
-                              {customer.revenue}
-                            </td>
-                            <td className="px-4 py-4 text-xs text-slate-500">
-                              {customer.joinDate}
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                              <CustomerActionMenu />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-3 md:hidden">
-            {filteredCustomers.map((customer) => {
-              const colors = statusColors[customer.status] || statusColors.Active;
-              return (
-                <Card
-                  key={customer.id}
-                  className={`border border-slate-200 bg-white`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-slate-900">
-                            {customer.name}
-                          </p>
-                          <Badge className={`${colors.badge}`}>
-                            {customer.status}
-                          </Badge>
-                        </div>
-
-                        <div className="flex items-center gap-1 text-xs text-slate-600">
-                          <Mail className="h-3 w-3" />
-                          {customer.email}
-                        </div>
-
-                        <div className="space-y-1 pt-1">
-                          <p className="text-sm text-slate-600">
-                            {customer.plan} plan
-                          </p>
-                          <p className="text-sm font-semibold text-slate-900">
+                              <p className="text-xs text-slate-500 sm:hidden">
+                                {customer.email}
+                              </p>
+                              <p className="text-xs text-slate-500 md:hidden">
+                                {customer.plan} plan
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-slate-600 hidden sm:table-cell">
+                            {customer.email}
+                          </td>
+                          <td className="px-4 py-4">
+                            <Badge className={`${colors.badge}`}>
+                              {customer.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-4 text-slate-600 hidden md:table-cell">
+                            {customer.plan}
+                          </td>
+                          <td className="px-4 py-4 font-mono text-xs text-slate-600 hidden lg:table-cell">
+                            {customer.subscriptionId}
+                          </td>
+                          <td className="px-4 py-4 text-xs text-slate-600 hidden lg:table-cell">
+                            {customer.nextBilling}
+                          </td>
+                          <td className="px-4 py-4 font-semibold text-slate-900 hidden xl:table-cell">
                             {customer.revenue}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            Joined {customer.joinDate}
-                          </p>
-                        </div>
-                      </div>
-
-                      <CustomerActionMenu />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            <CustomerActionMenu />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="flex items-center justify-center pt-4">
             <p className="text-sm text-slate-600">
@@ -322,16 +294,8 @@ function CustomerActionMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuItem>
-          <Eye className="mr-2 h-4 w-4" />
-          View profile
-        </DropdownMenuItem>
-        <DropdownMenuItem>
           <Mail className="mr-2 h-4 w-4" />
           Send email
-        </DropdownMenuItem>
-        <DropdownMenuItem>
-          <Settings className="mr-2 h-4 w-4" />
-          Edit customer
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem className="text-red-600">

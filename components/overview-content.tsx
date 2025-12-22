@@ -68,35 +68,35 @@ const mockStatusBreakdown = [
   {
     status: "TRIALING",
     count: 12,
-    color: "bg-amber-50",
-    textColor: "text-amber-700",
+    color: "bg-blue-500",
+    textColor: "text-blue-700",
     label: "Trialing",
   },
   {
     status: "ACTIVE",
     count: 842,
-    color: "bg-emerald-50",
+    color: "bg-emerald-500",
     textColor: "text-emerald-700",
     label: "Active",
   },
   {
     status: "PAST_DUE",
     count: 9,
-    color: "bg-red-50",
+    color: "bg-red-500",
     textColor: "text-red-700",
     label: "Past Due",
   },
   {
     status: "CANCELED",
     count: 24,
-    color: "bg-slate-50",
+    color: "bg-slate-400",
     textColor: "text-slate-700",
     label: "Canceled",
   },
   {
     status: "EXPIRED",
     count: 3,
-    color: "bg-slate-50",
+    color: "bg-slate-300",
     textColor: "text-slate-600",
     label: "Expired",
   },
@@ -152,7 +152,7 @@ export default function OverviewContent() {
 
       {/* Content */}
       <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="space-y-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {mockSummaryData.map((item, idx) => {
@@ -210,7 +210,7 @@ export default function OverviewContent() {
                     >
                       <div className="flex items-center gap-3">
                         <div
-                          className={`h-3 w-3 rounded-full ${item.color} border ${item.textColor}`}
+                          className={`h-3 w-3 rounded-full ${item.color}`}
                         ></div>
                         <div>
                           <p className="text-sm font-medium">{item.label}</p>
@@ -257,7 +257,15 @@ export default function OverviewContent() {
                             {item.subscription}
                           </td>
                           <td className="px-4 py-3">
-                            <Badge variant="outline" className="text-xs">
+                            <Badge 
+                              className={`text-xs ${
+                                item.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' :
+                                item.status === 'TRIALING' ? 'bg-blue-100 text-blue-800' :
+                                item.status === 'PAST_DUE' ? 'bg-red-100 text-red-800' :
+                                item.status === 'CANCELED' ? 'bg-slate-100 text-slate-700' :
+                                'bg-slate-100 text-slate-600'
+                              }`}
+                            >
                               {item.status}
                             </Badge>
                           </td>

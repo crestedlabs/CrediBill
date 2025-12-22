@@ -20,7 +20,7 @@ export default function SettingsContent() {
       </div>
 
       {/* Tabs Container */}
-      <div className="mx-auto max-w-7xl">
+      <div>
         <Tabs defaultValue="general" className="mt-6">
           <div className="lg:grid lg:grid-cols-12 lg:gap-x-8">
             {/* Desktop Sidebar Navigation */}

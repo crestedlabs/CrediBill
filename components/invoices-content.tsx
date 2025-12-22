@@ -225,7 +225,7 @@ export default function InvoicesContent() {
 
       {/* Content */}
       <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="space-y-6">
           <div className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-2">
               <div className="relative flex-1">
@@ -271,116 +271,78 @@ export default function InvoicesContent() {
             </div>
           </div>
 
-          <div className="hidden md:block">
-            <Card className="border border-slate-200 bg-white">
-              <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="border-b border-slate-200 bg-slate-50">
-                      <tr className="text-left text-xs font-semibold text-slate-700">
-                        <th className="px-4 py-3">Invoice ID</th>
-                        <th className="px-4 py-3">Customer</th>
-                        <th className="px-4 py-3">Amount</th>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3">Payment Method</th>
-                        <th className="px-4 py-3">Issued Date</th>
-                        <th className="px-4 py-3 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredInvoices.map((invoice, idx) => {
-                        const colors =
-                          statusConfig[invoice.status] || statusConfig.Open;
-                        return (
-                          <tr
-                            key={invoice.id}
-                            className={`text-sm transition-colors hover:bg-slate-50 ${
-                              idx !== filteredInvoices.length - 1
-                                ? "border-b border-slate-200"
-                                : ""
-                            }`}
-                          >
-                            <td className="px-4 py-4">
+          <Card className="border border-slate-200 bg-white">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-slate-200 bg-slate-50">
+                    <tr className="text-left text-xs font-semibold text-slate-700">
+                      <th className="px-4 py-3">Invoice ID</th>
+                      <th className="px-4 py-3 hidden sm:table-cell">Customer</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 hidden md:table-cell">Amount</th>
+                      <th className="px-4 py-3 hidden lg:table-cell">Payment Method</th>
+                      <th className="px-4 py-3 hidden lg:table-cell">Issued Date</th>
+                      <th className="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredInvoices.map((invoice, idx) => {
+                      const colors =
+                        statusConfig[invoice.status] || statusConfig.Open;
+                      return (
+                        <tr
+                          key={invoice.id}
+                          className={`text-sm transition-colors hover:bg-slate-50 ${
+                            idx !== filteredInvoices.length - 1
+                              ? "border-b border-slate-200"
+                              : ""
+                          }`}
+                        >
+                          <td className="px-4 py-4">
+                            <div>
                               <p className="font-mono font-medium text-slate-900">
                                 {invoice.id}
                               </p>
-                            </td>
-                            <td className="px-4 py-4 text-slate-600">
-                              {invoice.customer}
-                            </td>
-                            <td className="px-4 py-4 font-semibold text-slate-900">
-                              ${invoice.amount.toFixed(2)}
-                            </td>
-                            <td className="px-4 py-4">
-                              <Badge className={`${colors.badge}`}>
-                                {invoice.status}
-                              </Badge>
-                            </td>
-                            <td className="px-4 py-4 text-xs text-slate-500">
-                              {invoice.paymentMethod}
-                            </td>
-                            <td className="px-4 py-4 text-slate-600">
-                              {invoice.issuedDate}
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                              <InvoiceActionMenu
-                                invoice={invoice}
-                                onViewDetails={() => openDetails(invoice)}
-                              />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-3 md:hidden">
-            {filteredInvoices.map((invoice) => {
-              const colors = statusConfig[invoice.status] || statusConfig.Open;
-              return (
-                <Card
-                  key={invoice.id}
-                  className={`border border-slate-200 bg-white cursor-pointer transition-all hover:border-slate-300`}
-                  onClick={() => openDetails(invoice)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <p className="font-mono text-sm font-semibold text-slate-900">
-                            {invoice.id}
-                          </p>
-                          <Badge className={`${colors.badge}`}>
-                            {invoice.status}
-                          </Badge>
-                        </div>
-
-                        <p className="text-sm text-slate-600">{invoice.customer}</p>
-
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-slate-900">
+                              <p className="text-xs text-slate-500 sm:hidden">
+                                {invoice.customer}
+                              </p>
+                              <p className="text-xs font-semibold text-slate-900 md:hidden mt-1">
+                                ${invoice.amount.toFixed(2)}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-slate-600 hidden sm:table-cell">
+                            {invoice.customer}
+                          </td>
+                          <td className="px-4 py-4">
+                            <Badge className={`${colors.badge}`}>
+                              {invoice.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-4 font-semibold text-slate-900 hidden md:table-cell">
                             ${invoice.amount.toFixed(2)}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {invoice.paymentMethod} • {invoice.issuedDate}
-                          </p>
-                        </div>
-                      </div>
-
-                      <InvoiceActionMenu
-                        invoice={invoice}
-                        onViewDetails={() => openDetails(invoice)}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                          </td>
+                          <td className="px-4 py-4 text-xs text-slate-500 hidden lg:table-cell">
+                            {invoice.paymentMethod}
+                          </td>
+                          <td className="px-4 py-4 text-slate-600 hidden lg:table-cell">
+                            {invoice.issuedDate}
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            <InvoiceActionMenu
+                              invoice={invoice}
+                              onViewDetails={() => openDetails(invoice)}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="flex items-center justify-center pt-4">
             <p className="text-sm text-slate-600">

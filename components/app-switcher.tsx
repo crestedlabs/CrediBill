@@ -37,8 +37,7 @@ export function AppSwitcher({
                 <Grid className="size-4" />
               </div>
               <div className="flex flex-col gap-0.5 leading-none">
-                <span className="font-medium">App</span>
-                <span className="">{selected}</span>
+                <span className="font-semibold text-base">{selected}</span>
               </div>
               <ChevronsUpDown className="ml-auto" />
             </SidebarMenuButton>

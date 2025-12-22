@@ -39,7 +39,6 @@ const data: { apps: string[]; navItems: NavItem[] } = {
   navItems: [
     { title: "Overview", url: "/overview", icon: Home },
     { title: "Customers", url: "/customers", icon: Users },
-    { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
     { title: "Plans", url: "/plans", icon: List },
     { title: "Invoices", url: "/invoices", icon: File },
     { title: "Settings", url: "/settings", icon: Settings },

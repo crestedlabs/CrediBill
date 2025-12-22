@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Plus, Edit, Archive, Trash2 } from "lucide-react";
+import { MoreVertical, Plus, Edit, Archive, Trash2, Zap, Users, TrendingUp } from "lucide-react";
 
 const mockPlans = [
   {
@@ -23,6 +23,9 @@ const mockPlans = [
     status: "Active",
     activeSubscribers: 124,
     totalRevenue: 22273000,
+    icon: Zap,
+    iconColor: "bg-blue-500",
+    iconBg: "bg-blue-50",
   },
   {
     id: "plan_2",
@@ -32,6 +35,9 @@ const mockPlans = [
     status: "Active",
     activeSubscribers: 287,
     totalRevenue: 209510000,
+    icon: TrendingUp,
+    iconColor: "bg-emerald-500",
+    iconBg: "bg-emerald-50",
   },
   {
     id: "plan_3",
@@ -41,6 +47,9 @@ const mockPlans = [
     status: "Active",
     activeSubscribers: 12,
     totalRevenue: 43920000,
+    icon: Users,
+    iconColor: "bg-purple-500",
+    iconBg: "bg-purple-50",
   },
   {
     id: "plan_4",
@@ -50,6 +59,9 @@ const mockPlans = [
     status: "Archived",
     activeSubscribers: 8,
     totalRevenue: 26352000,
+    icon: Archive,
+    iconColor: "bg-slate-400",
+    iconBg: "bg-slate-50",
   },
 ];
 
@@ -125,7 +137,7 @@ export default function PlansContent() {
 
       {/* Content */}
       <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl space-y-6">
+        <div className="space-y-6">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {plans.map((plan) => (
               <PlanCard key={plan.id} plan={plan} />
@@ -145,66 +157,42 @@ export default function PlansContent() {
 
 function PlanCard({ plan }: { plan: (typeof mockPlans)[0] }) {
   const isArchived = plan.status === "Archived";
+  const Icon = plan.icon;
 
   return (
-    <Card
-      className={`border border-slate-200 bg-white transition-all hover:border-slate-300 hover:shadow-md ${
-        isArchived ? "opacity-75" : ""
-      }`}
-    >
-      <CardHeader className="space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1">
-            <CardTitle className="text-lg">{plan.name}</CardTitle>
-            <div className="mt-2 flex items-baseline gap-1">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">UGX</span>
-              <span className="text-3xl font-bold text-blue-600">
-                {plan.price >= 1000000 ? `${(plan.price / 1000000).toFixed(1)}M` : `${(plan.price / 1000).toFixed(0)}K`}
-              </span>
-              <span className="text-sm text-slate-600">
-                /{plan.billingCadence === "monthly" ? "mo" : "yr"}
-              </span>
+    <Card className="border border-slate-200 bg-white transition-all hover:shadow-md">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${plan.iconBg}`}>
+              <Icon className={`h-5 w-5 text-white ${plan.iconColor}`} />
+            </div>
+            <div>
+              <CardTitle className="text-base font-semibold text-slate-900">{plan.name}</CardTitle>
+              <div className="flex items-baseline gap-1 mt-0.5">
+                <span className="text-xs text-slate-500 uppercase">UGX</span>
+                <span className="text-lg font-bold text-slate-900">
+                  {plan.price >= 1000000 ? `${(plan.price / 1000000).toFixed(1)}M` : `${(plan.price / 1000).toFixed(0)}K`}
+                </span>
+                <span className="text-xs text-slate-500">/{plan.billingCadence === "monthly" ? "mo" : "yr"}</span>
+              </div>
             </div>
           </div>
-
           <PlanActionMenu />
-        </div>
-
-        <div className="flex gap-2">
-          <Badge
-            variant={isArchived ? "outline" : "default"}
-            className={
-              isArchived
-                ? "bg-slate-100 text-slate-700"
-                : "bg-emerald-100 text-emerald-800"
-            }
-          >
-            {plan.status}
-          </Badge>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+      <CardContent className="pt-3">
+        <div className="flex items-center justify-between text-sm">
           <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">
-              Active Subscribers
-            </p>
-            <p className="mt-1 text-2xl font-bold text-emerald-600">
-              {plan.activeSubscribers}
-            </p>
+            <p className="text-slate-500">Subscribers</p>
+            <p className="text-lg font-semibold text-slate-900">{plan.activeSubscribers}</p>
           </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase text-slate-500">
-              Revenue
+          <div className="text-right">
+            <p className="text-slate-500">Revenue</p>
+            <p className="text-lg font-semibold text-slate-900">
+              {plan.totalRevenue >= 1000000 ? `${(plan.totalRevenue / 1000000).toFixed(1)}M` : `${(plan.totalRevenue / 1000).toFixed(0)}K`}
             </p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">UGX</span>
-              <span className="text-2xl font-bold text-green-600">
-                {plan.totalRevenue >= 1000000 ? `${(plan.totalRevenue / 1000000).toFixed(1)}M` : `${(plan.totalRevenue / 1000).toFixed(0)}K`}
-              </span>
-            </div>
           </div>
         </div>
       </CardContent>
