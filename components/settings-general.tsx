@@ -15,106 +15,117 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select";
-import { Save } from "lucide-react";
+import { Save, DollarSign, Clock, Globe } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 export default function SettingsGeneral() {
+  // For now using Demo App - will be dynamic later
+  const appSettings = null; // useQuery(api.apps.getAppSettings, { appId: "demo" });
+
   return (
-    <div className="space-y-6">
-      <Card className="border border-slate-200">
-        <CardHeader>
-          <CardTitle className="text-lg">General Settings</CardTitle>
-          <CardDescription>
-            Configure basic preferences for your app
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-8">
-          <div className="space-y-2 md:grid md:grid-cols-5 md:items-start md:gap-4 md:space-y-0">
-            <div className="md:col-span-3">
-              <label className="text-base font-medium text-slate-900">
-                Billing Currency
-              </label>
-              <p className="text-sm text-slate-500">
-                Select the default currency for all new subscriptions and
-                invoices.
-              </p>
+    <div className="space-y-8">
+      {/* Currency Settings */}
+      <Card className="border-0 shadow-sm bg-white">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-emerald-50 rounded-lg">
+              <DollarSign className="h-5 w-5 text-emerald-600" />
             </div>
-            <div className="md:col-span-2">
-              <Select defaultValue="ugx">
-                <SelectTrigger>
+            <div>
+              <CardTitle className="text-lg font-semibold">Currency & Billing</CardTitle>
+              <CardDescription className="text-slate-500">
+                Configure default currency for subscriptions and invoices
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                Default Currency
+              </label>
+              <Select defaultValue={appSettings?.defaultCurrency || "ugx"}>
+                <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="ugx">UGX</SelectItem>
-                    <SelectItem value="kex">KEX </SelectItem>
-                    <SelectItem value="tzs">TZS </SelectItem>
-                    <SelectItem value="frc">RWF</SelectItem>
-                    <SelectItem value="usd">USD</SelectItem>
+                    <SelectItem value="ugx">🇺🇬 UGX - Ugandan Shilling</SelectItem>
+                    <SelectItem value="kes">🇰🇪 KES - Kenyan Shilling</SelectItem>
+                    <SelectItem value="tzs">🇹🇿 TZS - Tanzanian Shilling</SelectItem>
+                    <SelectItem value="rwf">🇷🇼 RWF - Rwandan Franc</SelectItem>
+                    <SelectItem value="usd">🇺🇸 USD - US Dollar</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          <div className="space-y-2 md:grid md:grid-cols-5 md:items-start md:gap-4 md:space-y-0">
-            <div className="md:col-span-3">
-              <label className="text-base font-medium text-slate-900">
+      {/* Regional Settings */}
+      <Card className="border-0 shadow-sm bg-white">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-50 rounded-lg">
+              <Clock className="h-5 w-5 text-blue-600" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-semibold">Regional Settings</CardTitle>
+              <CardDescription className="text-slate-500">
+                Set timezone and language preferences
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
                 Time Zone
               </label>
-              <p className="text-sm text-slate-500">
-                Set the time zone for reporting and invoice generation
-                dates.
-              </p>
-            </div>
-            <div className="md:col-span-2">
-              <Select defaultValue="eat">
-                <SelectTrigger>
+              <Select defaultValue={appSettings?.timezone || "eat"}>
+                <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    <SelectItem value="eat">EAT (GMT+3)</SelectItem>
-                    <SelectItem value="cat">CAT (GMT+2)</SelectItem>
+                    <SelectItem value="eat">East Africa Time (GMT+3)</SelectItem>
+                    <SelectItem value="cat">Central Africa Time (GMT+2)</SelectItem>
+                    <SelectItem value="wat">West Africa Time (GMT+1)</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="space-y-2 md:grid md:grid-cols-5 md:items-start md:gap-4 md:space-y-0">
-            <div className="md:col-span-3">
-              <label className="text-base font-medium text-slate-900">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">
                 Language
               </label>
-              <p className="text-sm text-slate-500">
-                Choose the default language for the dashboard and customer
-                communications.
-              </p>
-            </div>
-            <div className="md:col-span-2">
-              <Select defaultValue="en">
-                <SelectTrigger>
+              <Select defaultValue={appSettings?.language || "en"}>
+                <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="kis">Kiswahili</SelectItem>
+                    <SelectItem value="sw">Kiswahili</SelectItem>
                     <SelectItem value="fr">Français</SelectItem>
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
           </div>
-
-          <Separator />
-
-          <div className="flex justify-end">
-            <Button className="h-10">
-              <Save className="mr-2 h-4 w-4" />Save Changes
-            </Button>
-          </div>
         </CardContent>
       </Card>
+
+      {/* Save Changes */}
+      <div className="flex justify-end pt-4">
+        <Button className="h-10 px-6">
+          <Save className="mr-2 h-4 w-4" />
+          Save Changes
+        </Button>
+      </div>
     </div>
   );
 }

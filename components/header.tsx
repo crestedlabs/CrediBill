@@ -2,6 +2,7 @@
 
 import { SignedIn, UserButton } from "@clerk/nextjs";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { NotificationCenter } from "@/components/notification-center";
 
 export default function Header() {
   return (
@@ -13,6 +14,7 @@ export default function Header() {
 
       <div className="ml-auto flex items-center gap-3">
         <SignedIn>
+          <NotificationCenter />
           <UserButton />
         </SignedIn>
       </div>

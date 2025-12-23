@@ -1,5 +1,8 @@
 "use client";
 
+import { Authenticated, Unauthenticated } from "convex/react";
+import { SignInButton } from "@clerk/nextjs";
+
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -91,6 +94,27 @@ const statusColors: Record<string, { badge: string; bg: string }> = {
 const filterOptions = ["All", "Active", "Trialing", "Past Due", "Canceled"];
 
 export default function CustomersContent() {
+  return (
+    <>
+      <Authenticated>
+        <CustomersManager />
+      </Authenticated>
+      <Unauthenticated>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <h1 className="text-2xl font-semibold text-slate-900">Welcome to CrediBill</h1>
+            <p className="text-slate-600">Please sign in to manage your customers</p>
+            <SignInButton mode="modal">
+              <Button>Sign In</Button>
+            </SignInButton>
+          </div>
+        </div>
+      </Unauthenticated>
+    </>
+  );
+}
+
+function CustomersManager() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const isEmpty = false;

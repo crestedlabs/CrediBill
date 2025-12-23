@@ -1,5 +1,8 @@
 "use client";
 
+import { Authenticated, Unauthenticated } from "convex/react";
+import { SignInButton } from "@clerk/nextjs";
+
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +69,27 @@ const mockPlans = [
 ];
 
 export default function PlansContent() {
+  return (
+    <>
+      <Authenticated>
+        <PlansManager />
+      </Authenticated>
+      <Unauthenticated>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <h1 className="text-2xl font-semibold text-slate-900">Welcome to CrediBill</h1>
+            <p className="text-slate-600">Please sign in to manage your plans</p>
+            <SignInButton mode="modal">
+              <Button>Sign In</Button>
+            </SignInButton>
+          </div>
+        </div>
+      </Unauthenticated>
+    </>
+  );
+}
+
+function PlansManager() {
   const [plans] = useState(mockPlans);
   const isEmpty = false;
 

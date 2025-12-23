@@ -9,9 +9,11 @@ import {
   List,
   Settings,
   CreditCard,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 // Types for navigation data
 type NavItem = {
@@ -22,6 +24,7 @@ type NavItem = {
 };
 
 import { AppSwitcher } from "@/components/app-switcher";
+import { OrgSwitcher } from "@/components/org-switcher";
 // collapsible no longer used — kept for potential future sections (unused currently)
 import {
   Sidebar,
@@ -31,18 +34,19 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
 
 // Navigation data — simplified to the app routes you requested.
-const data: { apps: string[]; navItems: NavItem[] } = {
+const data: { apps: string[]; organizations: string[]; navItems: NavItem[] } = {
   apps: ["Reciit", "Votera", "Brodkast"],
+  organizations: ["Crested Labs", "TechCorp", "StartupHub"],
   navItems: [
     { title: "Overview", url: "/overview", icon: Home },
     { title: "Customers", url: "/customers", icon: Users },
     { title: "Plans", url: "/plans", icon: List },
     { title: "Invoices", url: "/invoices", icon: File },
     { title: "Settings", url: "/settings", icon: Settings },
-    { title: "Apps", url: "/apps", icon: Grid },
   ],
 };
 
@@ -55,7 +59,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
         <div className="flex items-center gap-2">
-          <AppSwitcher apps={data.apps} defaultApp={data.apps[0]} />
+          <AppSwitcher />
+        </div>
+        <div className="mt-3 px-2">
+          <Link href="/create-app">
+            <Button className="w-full h-9 text-sm bg-teal-600 hover:bg-teal-700 text-white" onClick={() => {
+              // Close sidebar on mobile
+              if (window.innerWidth < 768) {
+                document.querySelector('[data-sidebar="sidebar"]')?.setAttribute('data-state', 'closed');
+              }
+            }}>
+              <Plus className="mr-2 h-4 w-4" />
+              Create App
+            </Button>
+          </Link>
         </div>
       </SidebarHeader>
       <SidebarContent className="gap-0">
@@ -88,6 +105,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           })}
         </SidebarMenu>
       </SidebarContent>
+      <SidebarFooter>
+        <div className="flex items-center gap-2">
+          <OrgSwitcher />
+        </div>
+      </SidebarFooter>
       <SidebarRail />
     </Sidebar>
   );

@@ -1,5 +1,8 @@
 "use client";
 
+import { Authenticated, Unauthenticated } from "convex/react";
+import { SignInButton } from "@clerk/nextjs";
+
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,6 +15,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Plus, Edit, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 const mockApps = [
   {
@@ -49,6 +53,27 @@ const mockApps = [
 ];
 
 export default function AppsContent() {
+  return (
+    <>
+      <Authenticated>
+        <AppsManager />
+      </Authenticated>
+      <Unauthenticated>
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <h1 className="text-2xl font-semibold text-slate-900">Welcome to CrediBill</h1>
+            <p className="text-slate-600">Please sign in to manage your apps</p>
+            <SignInButton mode="modal">
+              <Button>Sign In</Button>
+            </SignInButton>
+          </div>
+        </div>
+      </Unauthenticated>
+    </>
+  );
+}
+
+function AppsManager() {
   const isEmpty = false;
 
   if (isEmpty) {
@@ -63,10 +88,12 @@ export default function AppsContent() {
                 Manage and monitor all your connected applications
               </p>
             </div>
-            <Button className="w-full md:w-auto h-10">
-              <Plus className="mr-2 h-4 w-4" />
-              Create App
-            </Button>
+            <Link href="/create-app">
+              <Button className="w-full md:w-auto h-9 text-sm bg-teal-600 hover:bg-teal-700 text-white">
+                <Plus className="mr-2 h-4 w-4" />
+                Create App
+              </Button>
+            </Link>
           </div>
         </div>
 
@@ -86,10 +113,12 @@ export default function AppsContent() {
                 Create your first app to start managing subscriptions and
                 billing.
               </p>
-              <Button className="w-full">
-                <Plus className="mr-2 h-4 w-4" />
-                Create your first app
-              </Button>
+              <Link href="/create-app">
+                <Button className="w-full h-9 text-sm bg-teal-600 hover:bg-teal-700 text-white">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create your first app
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -108,10 +137,12 @@ export default function AppsContent() {
               Manage and monitor all your connected applications
             </p>
           </div>
-          <Button className="w-full md:w-auto h-10">
-            <Plus className="mr-2 h-4 w-4" />
-            Create App
-          </Button>
+          <Link href="/create-app">
+            <Button className="w-full md:w-auto h-10">
+              <Plus className="mr-2 h-4 w-4" />
+              Create App
+            </Button>
+          </Link>
         </div>
       </div>
 

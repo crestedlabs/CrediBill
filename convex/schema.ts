@@ -26,12 +26,12 @@ export default defineSchema({
   // Users. Here i define SaaS owners
   users: defineTable({
     email: v.string(),
-    first_name: v.optional(v.string()),
-    last_name: v.optional(v.string()),
-    authProvider: v.string(),
-    authUserId: v.string(),
+    name: v.string(),
+    externalUserId: v.optional(v.string()), // Clerk ID stored in the subject JWT Field
     status: v.union(v.literal("active"), v.literal("suspended")),
-  }).index("by_email", ["email"]),
+  })
+    .index("by_email", ["email"])
+    .index("byExternalId", ["externalUserId"]),
 
   //Apps. Each organization can have many apps
   apps: defineTable({
@@ -44,6 +44,46 @@ export default defineSchema({
       v.literal("archived")
     ),
     mode: v.optional(v.union(v.literal("live"), v.literal("test"))),
+    
+    // App-specific settings (required with defaults)
+    defaultCurrency: v.union(
+      v.literal("ugx"),
+      v.literal("kes"),
+      v.literal("tzs"),
+      v.literal("rwf"),
+      v.literal("usd")
+    ),
+    timezone: v.union(
+      v.literal("eat"), // East Africa Time (GMT+3)
+      v.literal("cat"), // Central Africa Time (GMT+2)
+      v.literal("wat")  // West Africa Time (GMT+1)
+    ),
+    language: v.union(
+      v.literal("en"),
+      v.literal("sw"),
+      v.literal("fr")
+    ),
+    
+    // Payment settings (required with defaults)
+    defaultPaymentMethod: v.union(
+      v.literal("momo"),
+      v.literal("credit-card"),
+      v.literal("bank")
+    ),
+    retryPolicy: v.union(
+      v.literal("automatic"),
+      v.literal("manual"),
+      v.literal("none")
+    ),
+    
+    // Billing settings (required with defaults)
+    defaultTrialLength: v.number(), // days, default 14
+    gracePeriod: v.number(), // days, default 3
+    billingCycle: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("yearly")
+    ),
   })
     .index("by_org", ["organizationId"])
     .index("by_status", ["status"]),
