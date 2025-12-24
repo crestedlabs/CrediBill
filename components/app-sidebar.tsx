@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { useSidebar } from "@/components/ui/sidebar";
 
 // Types for navigation data
 type NavItem = {
@@ -55,6 +56,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     usePathname() ??
     (typeof window !== "undefined" ? window.location.pathname : "/");
 
+  const { setOpenMobile } = useSidebar();
+
+  const handleCreateAppClick = () => {
+    // Close sidebar on mobile when navigating
+    setOpenMobile(false);
+  };
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -62,13 +70,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <AppSwitcher />
         </div>
         <div className="mt-3 px-2">
-          <Link href="/create-app">
-            <Button className="w-full h-9 text-sm bg-teal-600 hover:bg-teal-700 text-white" onClick={() => {
-              // Close sidebar on mobile
-              if (window.innerWidth < 768) {
-                document.querySelector('[data-sidebar="sidebar"]')?.setAttribute('data-state', 'closed');
-              }
-            }}>
+          <Link href="/create-app" onClick={handleCreateAppClick}>
+            <Button className="w-full h-9 text-sm bg-teal-600 hover:bg-teal-700 text-white">
               <Plus className="mr-2 h-4 w-4" />
               Create App
             </Button>

@@ -2,6 +2,8 @@
 
 import { Authenticated, Unauthenticated } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
+import { useApp } from "@/contexts/app-context";
+import Link from "next/link";
 
 import {
   Card,
@@ -22,7 +24,14 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select";
-import { CheckCircle, AlertTriangle, Calendar, DollarSign } from "lucide-react";
+import {
+  CheckCircle,
+  AlertTriangle,
+  Calendar,
+  DollarSign,
+  PackageOpen,
+  Plus,
+} from "lucide-react";
 
 type SubscriptionStatus =
   | "TRIALING"
@@ -144,13 +153,17 @@ export default function OverviewContent() {
   return (
     <>
       <Authenticated>
-        <OverviewDashboard />
+        <OverviewManager />
       </Authenticated>
       <Unauthenticated>
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold text-slate-900">Welcome to CrediBill</h1>
-            <p className="text-slate-600">Please sign in to access your dashboard</p>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Welcome to CrediBill
+            </h1>
+            <p className="text-slate-600">
+              Please sign in to access your dashboard
+            </p>
             <SignInButton mode="modal">
               <Button>Sign In</Button>
             </SignInButton>
@@ -159,6 +172,56 @@ export default function OverviewContent() {
       </Unauthenticated>
     </>
   );
+}
+
+function OverviewManager() {
+  const { apps } = useApp();
+
+  // Show no apps state
+  if (!apps || apps.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Overview</h1>
+            <p className="text-sm text-slate-600">
+              Billing and subscription health at a glance
+            </p>
+          </div>
+        </div>
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-24">
+              <div className="mx-auto max-w-sm space-y-4">
+                <div className="flex justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                    <PackageOpen className="h-8 w-8 text-blue-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    No apps yet
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Create your first app to start tracking subscriptions and
+                    billing
+                  </p>
+                </div>
+                <Link href="/create-app">
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create your first app
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return <OverviewDashboard />;
 }
 
 function OverviewDashboard() {
@@ -281,13 +344,17 @@ function OverviewDashboard() {
                             {item.subscription}
                           </td>
                           <td className="px-4 py-3">
-                            <Badge 
+                            <Badge
                               className={`text-xs ${
-                                item.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-800' :
-                                item.status === 'TRIALING' ? 'bg-blue-100 text-blue-800' :
-                                item.status === 'PAST_DUE' ? 'bg-red-100 text-red-800' :
-                                item.status === 'CANCELED' ? 'bg-slate-100 text-slate-700' :
-                                'bg-slate-100 text-slate-600'
+                                item.status === "ACTIVE"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : item.status === "TRIALING"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : item.status === "PAST_DUE"
+                                      ? "bg-red-100 text-red-800"
+                                      : item.status === "CANCELED"
+                                        ? "bg-slate-100 text-slate-700"
+                                        : "bg-slate-100 text-slate-600"
                               }`}
                             >
                               {item.status}

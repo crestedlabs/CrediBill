@@ -3,6 +3,8 @@
 import { Authenticated, Unauthenticated } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { useApp } from "@/contexts/app-context";
+import Link from "next/link";
 import SettingsAdvanced from "@/components/settings-advanced";
 import SettingsBilling from "@/components/settings-billing";
 import SettingsGeneral from "@/components/settings-general";
@@ -10,6 +12,7 @@ import SettingsTeam from "@/components/settings-team";
 import SettingsWebhooks from "@/components/settings-webhooks";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PackageOpen, Plus } from "lucide-react";
 
 export default function SettingsContent() {
   return (
@@ -20,8 +23,12 @@ export default function SettingsContent() {
       <Unauthenticated>
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold text-slate-900">Welcome to CrediBill</h1>
-            <p className="text-slate-600">Please sign in to access your settings</p>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Welcome to CrediBill
+            </h1>
+            <p className="text-slate-600">
+              Please sign in to access your settings
+            </p>
             <SignInButton mode="modal">
               <Button>Sign In</Button>
             </SignInButton>
@@ -33,18 +40,72 @@ export default function SettingsContent() {
 }
 
 function SettingsManager() {
+  const { apps, selectedApp } = useApp();
+
+  // Show no apps state
+  if (!apps || apps.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+          <div className="max-w-3xl">
+            <h1 className="text-2xl font-semibold text-slate-900">
+              App Settings
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Configure settings for your application
+            </p>
+          </div>
+        </div>
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-3xl">
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-24">
+              <div className="mx-auto max-w-sm space-y-4">
+                <div className="flex justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                    <PackageOpen className="h-8 w-8 text-blue-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    No apps yet
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Create your first app to configure settings
+                  </p>
+                </div>
+                <Link href="/create-app">
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create your first app
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
-          <h1 className="text-2xl font-semibold text-slate-900">App Settings</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            App Settings
+          </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Configure settings for <span className="font-medium text-slate-900">Demo App</span>
+            Configure settings for{" "}
+            <span className="font-medium text-slate-900">
+              {selectedApp?.name || "your app"}
+            </span>
           </p>
           <div className="mt-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">
-              <span className="font-medium">Note:</span> All settings below are specific to the currently selected app.
+              <span className="font-medium">Note:</span> All settings below are
+              specific to{" "}
+              <span className="font-semibold">{selectedApp?.name}</span>.
             </p>
           </div>
         </div>

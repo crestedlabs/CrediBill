@@ -44,7 +44,7 @@ export default defineSchema({
       v.literal("archived")
     ),
     mode: v.optional(v.union(v.literal("live"), v.literal("test"))),
-    
+
     // App-specific settings (required with defaults)
     defaultCurrency: v.union(
       v.literal("ugx"),
@@ -56,14 +56,10 @@ export default defineSchema({
     timezone: v.union(
       v.literal("eat"), // East Africa Time (GMT+3)
       v.literal("cat"), // Central Africa Time (GMT+2)
-      v.literal("wat")  // West Africa Time (GMT+1)
+      v.literal("wat") // West Africa Time (GMT+1)
     ),
-    language: v.union(
-      v.literal("en"),
-      v.literal("sw"),
-      v.literal("fr")
-    ),
-    
+    language: v.union(v.literal("en"), v.literal("sw"), v.literal("fr")),
+
     // Payment settings (required with defaults)
     defaultPaymentMethod: v.union(
       v.literal("momo"),
@@ -75,15 +71,27 @@ export default defineSchema({
       v.literal("manual"),
       v.literal("none")
     ),
-    
+
     // Billing settings (required with defaults)
     defaultTrialLength: v.number(), // days, default 14
     gracePeriod: v.number(), // days, default 3
-    billingCycle: v.union(
-      v.literal("monthly"),
-      v.literal("quarterly"),
-      v.literal("yearly")
+
+    // Advanced settings (optional with defaults)
+    allowPlanDowngrades: v.optional(v.boolean()), // default true
+    requireBillingAddress: v.optional(v.boolean()), // default false
+    enableProration: v.optional(v.boolean()), // default true
+    autoSuspendOnFailedPayment: v.optional(v.boolean()), // default true
+
+    // Legacy fields (deprecated but kept for backward compatibility)
+    billingCycle: v.optional(
+      v.union(
+        v.literal("monthly"),
+        v.literal("quarterly"),
+        v.literal("annual"),
+        v.literal("one-time")
+      )
     ),
+    supportsOneTimePayments: v.optional(v.boolean()),
   })
     .index("by_org", ["organizationId"])
     .index("by_status", ["status"]),
@@ -121,7 +129,12 @@ export default defineSchema({
     ),
     baseAmount: v.optional(v.number()), // smallest unit
     currency: v.string(),
-    interval: v.union(v.literal("monthly"), v.literal("yearly")),
+    interval: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("yearly"),
+      v.literal("one-time")
+    ),
     usageMetric: v.optional(v.string()), // e.g. "api_calls", "messages"
     unitPrice: v.optional(v.number()), // price per unit
     freeUnits: v.optional(v.number()), // included usage
@@ -264,4 +277,39 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_provider", ["provider"])
     .index("by_providerPaymentId", ["providerPaymentId"]),
+
+  // Webhooks Table
+  webhooks: defineTable({
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+    url: v.string(),
+    events: v.array(v.string()), // e.g., ["subscription.created", "invoice.paid"]
+    status: v.union(v.literal("active"), v.literal("inactive")),
+    secret: v.optional(v.string()), // For webhook signature verification
+    description: v.optional(v.string()),
+  })
+    .index("by_app", ["appId"])
+    .index("by_org", ["organizationId"])
+    .index("by_status", ["status"]),
+
+  // API Keys Table
+  apiKeys: defineTable({
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+    name: v.string(), // User-friendly name: "Production Key", "CI/CD Key"
+    keyId: v.string(), // Unique identifier: "key_abc123..."
+    hashedSecret: v.string(), // bcrypt hash of the actual secret key
+    keyPrefix: v.string(), // First 12 chars for display: "pk_live_abc1"
+    keySuffix: v.string(), // Last 4 chars for display: "xyz9"
+    environment: v.union(v.literal("test"), v.literal("live")),
+    scopes: v.array(v.string()), // ["read", "write", "webhooks", "admin"]
+    status: v.union(v.literal("active"), v.literal("revoked")),
+    expiresAt: v.optional(v.number()), // Unix timestamp
+    lastUsedAt: v.optional(v.number()),
+    createdBy: v.id("users"),
+  })
+    .index("by_keyId", ["keyId"])
+    .index("by_app", ["appId"])
+    .index("by_org", ["organizationId"])
+    .index("by_status", ["status"]),
 });

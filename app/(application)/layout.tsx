@@ -1,5 +1,7 @@
 import NavigationLayout from "@/components/navigation-bar";
 import Header from "@/components/header";
+import { OrganizationProvider } from "@/contexts/organization-context";
+import { AppProvider } from "@/contexts/app-context";
 
 export default function ProtectedLayout({
   children,
@@ -7,9 +9,11 @@ export default function ProtectedLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <>
-      {/* Use the shared navigation layout and inject our custom header */}
-      <NavigationLayout header={<Header />}>{children}</NavigationLayout>
-    </>
+    <OrganizationProvider>
+      <AppProvider>
+        {/* Use the shared navigation layout and inject our custom header */}
+        <NavigationLayout header={<Header />}>{children}</NavigationLayout>
+      </AppProvider>
+    </OrganizationProvider>
   );
 }

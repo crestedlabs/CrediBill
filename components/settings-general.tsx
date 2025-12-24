@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Card,
   CardContent,
@@ -15,12 +17,82 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select";
-import { Save, DollarSign, Clock, Globe } from "lucide-react";
-import { useQuery } from "convex/react";
+import { Save, DollarSign, Clock, Globe, Loader2 } from "lucide-react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { useApp } from "@/contexts/app-context";
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+
 export default function SettingsGeneral() {
-  // For now using Demo App - will be dynamic later
-  const appSettings = null; // useQuery(api.apps.getAppSettings, { appId: "demo" });
+  const { selectedApp } = useApp();
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const appSettings = useQuery(
+    api.apps.getAppSettings,
+    selectedApp?._id ? { appId: selectedApp._id } : "skip"
+  );
+  
+  const updateSettings = useMutation(api.apps.updateAppSettings);
+
+  // Form state
+  const [currency, setCurrency] = useState<string>("");
+  const [timezone, setTimezone] = useState<string>("");
+  const [language, setLanguage] = useState<string>("");
+
+  // Initialize form with current values
+  useEffect(() => {
+    if (appSettings) {
+      setCurrency(appSettings.defaultCurrency);
+      setTimezone(appSettings.timezone);
+      setLanguage(appSettings.language);
+    }
+  }, [appSettings]);
+
+  // Check if form has changes
+  const hasChanges =
+    appSettings &&
+    (currency !== appSettings.defaultCurrency ||
+      timezone !== appSettings.timezone ||
+      language !== appSettings.language);
+
+  const handleSave = async () => {
+    if (!selectedApp?._id || !hasChanges) return;
+
+    setIsSaving(true);
+    try {
+      await updateSettings({
+        appId: selectedApp._id,
+        defaultCurrency: currency as any,
+        timezone: timezone as any,
+        language: language as any,
+      });
+
+      toast.success("Settings updated successfully", {
+        description: "Your changes have been saved",
+      });
+    } catch (error: any) {
+      toast.error("Failed to update settings", {
+        description: error.message || "Please try again",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!appSettings) {
+    return (
+      <div className="space-y-8">
+        <Card className="border-0 shadow-sm bg-white">
+          <CardContent className="py-12">
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -45,7 +117,7 @@ export default function SettingsGeneral() {
               <label className="text-sm font-medium text-slate-700">
                 Default Currency
               </label>
-              <Select defaultValue={appSettings?.defaultCurrency || "ugx"}>
+              <Select value={currency} onValueChange={setCurrency}>
                 <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -85,7 +157,7 @@ export default function SettingsGeneral() {
               <label className="text-sm font-medium text-slate-700">
                 Time Zone
               </label>
-              <Select defaultValue={appSettings?.timezone || "eat"}>
+              <Select value={timezone} onValueChange={setTimezone}>
                 <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -102,7 +174,7 @@ export default function SettingsGeneral() {
               <label className="text-sm font-medium text-slate-700">
                 Language
               </label>
-              <Select defaultValue={appSettings?.language || "en"}>
+              <Select value={language} onValueChange={setLanguage}>
                 <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -121,9 +193,22 @@ export default function SettingsGeneral() {
 
       {/* Save Changes */}
       <div className="flex justify-end pt-4">
-        <Button className="h-10 px-6">
-          <Save className="mr-2 h-4 w-4" />
-          Save Changes
+        <Button
+          className="h-10 px-6"
+          onClick={handleSave}
+          disabled={!hasChanges || isSaving}
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" />
+              Save Changes
+            </>
+          )}
         </Button>
       </div>
     </div>

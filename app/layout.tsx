@@ -4,6 +4,7 @@ import "./globals.css";
 import { ClerkProvider } from "@clerk/nextjs";
 import { shadcn } from "@clerk/themes";
 import ConvexClientProvider from "@/components/convex-client-provider";
+import { Toaster } from "sonner";
 
 const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -34,6 +35,7 @@ export default function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >
           <ConvexClientProvider>{children}</ConvexClientProvider>
+          <Toaster position="top-right" richColors />
         </body>
       </html>
     </ClerkProvider>

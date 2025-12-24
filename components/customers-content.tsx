@@ -2,6 +2,8 @@
 
 import { Authenticated, Unauthenticated } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
+import { useApp } from "@/contexts/app-context";
+import Link from "next/link";
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +26,7 @@ import {
   Eye,
   Trash2,
   Search,
+  PackageOpen,
 } from "lucide-react";
 
 const mockCustomers = [
@@ -115,8 +118,53 @@ export default function CustomersContent() {
 }
 
 function CustomersManager() {
+  const { apps } = useApp();
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Show no apps state
+  if (!apps || apps.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Customers</h1>
+            <p className="text-sm text-slate-600">
+              Manage and view all your customers
+            </p>
+          </div>
+        </div>
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-24">
+              <div className="mx-auto max-w-sm space-y-4">
+                <div className="flex justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                    <PackageOpen className="h-8 w-8 text-blue-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    No apps yet
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Create your first app to start managing customers
+                  </p>
+                </div>
+                <Link href="/create-app">
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create your first app
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const isEmpty = false;
 
   if (isEmpty) {

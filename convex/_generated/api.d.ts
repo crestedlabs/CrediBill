@@ -8,10 +8,14 @@
  * @module
  */
 
+import type * as apiKeys from "../apiKeys.js";
 import type * as apps from "../apps.js";
+import type * as customers from "../customers.js";
 import type * as http from "../http.js";
 import type * as organizations from "../organizations.js";
+import type * as plans from "../plans.js";
 import type * as users from "../users.js";
+import type * as webhooks from "../webhooks.js";
 
 import type {
   ApiFromModules,
@@ -20,10 +24,14 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  apiKeys: typeof apiKeys;
   apps: typeof apps;
+  customers: typeof customers;
   http: typeof http;
   organizations: typeof organizations;
+  plans: typeof plans;
   users: typeof users;
+  webhooks: typeof webhooks;
 }>;
 
 /**

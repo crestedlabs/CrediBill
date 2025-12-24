@@ -2,6 +2,8 @@
 
 import { Authenticated, Unauthenticated } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
+import { useApp } from "@/contexts/app-context";
+import Link from "next/link";
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,6 +41,8 @@ import {
   RotateCcw,
   RefreshCw,
   ZapOff,
+  PackageOpen,
+  Plus,
 } from "lucide-react";
 
 const mockInvoices = [
@@ -152,8 +156,12 @@ export default function InvoicesContent() {
       <Unauthenticated>
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold text-slate-900">Welcome to CrediBill</h1>
-            <p className="text-slate-600">Please sign in to manage your invoices</p>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Welcome to CrediBill
+            </h1>
+            <p className="text-slate-600">
+              Please sign in to manage your invoices
+            </p>
             <SignInButton mode="modal">
               <Button>Sign In</Button>
             </SignInButton>
@@ -165,12 +173,57 @@ export default function InvoicesContent() {
 }
 
 function InvoicesManager() {
+  const { apps } = useApp();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selectedInvoice, setSelectedInvoice] = useState<
     (typeof mockInvoices)[0] | null
   >(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // Show no apps state
+  if (!apps || apps.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Invoices</h1>
+            <p className="text-sm text-slate-600">
+              Manage and track all invoices
+            </p>
+          </div>
+        </div>
+        <div className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="flex items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-16 text-center md:py-24">
+              <div className="mx-auto max-w-sm space-y-4">
+                <div className="flex justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+                    <PackageOpen className="h-8 w-8 text-blue-600" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-900">
+                    No apps yet
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Create your first app to start managing invoices
+                  </p>
+                </div>
+                <Link href="/create-app">
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create your first app
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const isEmpty = false;
 
   const filteredInvoices = mockInvoices.filter((inv) => {
@@ -193,7 +246,9 @@ function InvoicesManager() {
         <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold text-slate-900">Invoices</h1>
+              <h1 className="text-2xl font-semibold text-slate-900">
+                Invoices
+              </h1>
               <p className="text-sm text-slate-600">
                 Manage and track all billing invoices
               </p>
@@ -302,11 +357,17 @@ function InvoicesManager() {
                   <thead className="border-b border-slate-200 bg-slate-50">
                     <tr className="text-left text-xs font-semibold text-slate-700">
                       <th className="px-4 py-3">Invoice ID</th>
-                      <th className="px-4 py-3 hidden sm:table-cell">Customer</th>
+                      <th className="px-4 py-3 hidden sm:table-cell">
+                        Customer
+                      </th>
                       <th className="px-4 py-3">Status</th>
                       <th className="px-4 py-3 hidden md:table-cell">Amount</th>
-                      <th className="px-4 py-3 hidden lg:table-cell">Payment Method</th>
-                      <th className="px-4 py-3 hidden lg:table-cell">Issued Date</th>
+                      <th className="px-4 py-3 hidden lg:table-cell">
+                        Payment Method
+                      </th>
+                      <th className="px-4 py-3 hidden lg:table-cell">
+                        Issued Date
+                      </th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
                   </thead>

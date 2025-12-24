@@ -3,8 +3,7 @@
 import { Authenticated, Unauthenticated } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useOrganization } from "@/contexts/organization-context";
 import {
   Card,
   CardContent,
@@ -24,19 +23,17 @@ import {
   Building2,
   Grid,
   Users,
-  Edit3,
   AlertTriangle,
-  Crown,
   UserX,
   Settings,
   Plus,
-  Save,
 } from "lucide-react";
-import { useQuery } from "convex/react";
-import { api } from "@/convex/_generated/api";
 import AppsContent from "@/components/apps-content";
 import SettingsTeam from "@/components/settings-team";
+import OrganizationNameEdit from "@/components/organization-name-edit";
+import OrganizationDeleteDialog from "@/components/organization-delete-dialog";
 import { useRouter } from "next/navigation";
+import { Id } from "@/convex/_generated/dataModel";
 
 export default function OrganizationDetailsContent() {
   return (
@@ -64,8 +61,7 @@ export default function OrganizationDetailsContent() {
 }
 
 function OrganizationManager() {
-  const organizations = useQuery(api.organizations.getUserOrganizations);
-  const currentOrg = organizations?.[0]; // Get first organization for now
+  const { selectedOrg, setSelectedOrgId, organizations } = useOrganization();
   const router = useRouter();
 
   return (
@@ -79,7 +75,7 @@ function OrganizationManager() {
             </div>
             <div className="flex-1">
               <h1 className="text-2xl font-semibold text-slate-900">
-                {currentOrg?.name}
+                {selectedOrg?.name}
               </h1>
               <p className="mt-1 text-sm text-slate-600">
                 Manage your organization settings, team members, and
@@ -89,18 +85,12 @@ function OrganizationManager() {
               {/* Mobile Organization Switcher */}
               <div className="mt-3 md:hidden">
                 <Select
-                  value={currentOrg?.name || ""}
+                  value={selectedOrg?._id}
                   onValueChange={(value) => {
                     if (value === "create-new") {
                       router.push("/create-organization");
                     } else {
-                      // Handle organization switch
-                      const selectedOrg = organizations?.find(
-                        (org) => org.name === value
-                      );
-                      if (selectedOrg) {
-                        console.log("Switch to:", selectedOrg.name);
-                      }
+                      setSelectedOrgId(value as Id<"organizations">);
                     }
                   }}
                 >
@@ -109,7 +99,7 @@ function OrganizationManager() {
                   </SelectTrigger>
                   <SelectContent>
                     {organizations?.map((org) => (
-                      <SelectItem key={org._id} value={org.name || ""}>
+                      <SelectItem key={org._id} value={org._id || ""}>
                         {org.name}
                       </SelectItem>
                     ))}
@@ -163,51 +153,31 @@ function OrganizationManager() {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <OrganizationSettings currentOrg={currentOrg} />
+            {selectedOrg?._id && selectedOrg?.name && (
+              <OrganizationSettings currentOrg={selectedOrg as Organization} />
+            )}
           </TabsContent>
         </Tabs>
       </div>
     </div>
   );
 }
-function OrganizationSettings({ currentOrg }: { currentOrg: any }) {
+
+interface Organization {
+  _id: Id<"organizations">;
+  name: string;
+  role: string;
+}
+
+function OrganizationSettings({ currentOrg }: { currentOrg: Organization }) {
   return (
     <div className="space-y-6">
       {/* Organization Name */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <Edit3 className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <CardTitle>Organization Name</CardTitle>
-              <CardDescription>
-                Update your organization's display name
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2">
-            <Label htmlFor="org-name">Organization Name</Label>
-            <Input
-              id="org-name"
-              placeholder="Enter organization name"
-              defaultValue={currentOrg?.name || ""}
-              className="w-full"
-            />
-            <Button className="h-10 w-full sm:w-auto sm:self-start">
-              <Save className="mr-2 h-4 w-4" />
-              Save Changes
-            </Button>
-          </div>
-          <p className="text-sm text-slate-600">
-            This name will be visible to all team members and in your billing
-            information.
-          </p>
-        </CardContent>
-      </Card>
+      <OrganizationNameEdit
+        organizationId={currentOrg._id}
+        currentName={currentOrg.name}
+        userRole={currentOrg.role}
+      />
 
       {/* Danger Zone */}
       <Card className="border-red-200">
@@ -225,34 +195,6 @@ function OrganizationSettings({ currentOrg }: { currentOrg: any }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Transfer Ownership */}
-          <div className="p-4 border border-amber-200 bg-amber-50 rounded-lg">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-amber-600" />
-                <h4 className="font-medium text-amber-900">
-                  Transfer Ownership
-                </h4>
-              </div>
-              <p className="text-sm text-amber-700">
-                Transfer ownership of this organization to another team
-                member. You will lose admin access.
-              </p>
-              <div className="flex flex-col gap-3">
-                <Input
-                  placeholder="Enter new owner's email"
-                  className="w-full h-10 bg-white border-amber-200 focus:border-amber-300"
-                />
-                <Button
-                  variant="outline"
-                  className="h-10 w-full border-amber-300 text-amber-700 hover:bg-amber-100"
-                >
-                  Transfer Ownership
-                </Button>
-              </div>
-            </div>
-          </div>
-
           {/* Delete Organization */}
           <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
             <div className="flex items-start gap-3">
@@ -263,13 +205,16 @@ function OrganizationSettings({ currentOrg }: { currentOrg: any }) {
                     Delete Organization
                   </h4>
                   <p className="text-sm text-red-700 mt-1">
-                    Permanently delete this organization and all associated
-                    data. This action cannot be undone.
+                    Permanently delete this organization and all associated data
+                    including apps, customers, and billing records. This action
+                    cannot be undone.
                   </p>
                 </div>
-                <Button variant="destructive" className="h-10">
-                  Delete Organization
-                </Button>
+                <OrganizationDeleteDialog
+                  organizationId={currentOrg._id}
+                  organizationName={currentOrg.name}
+                  userRole={currentOrg.role}
+                />
               </div>
             </div>
           </div>

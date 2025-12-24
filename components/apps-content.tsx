@@ -2,6 +2,9 @@
 
 import { Authenticated, Unauthenticated } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useOrganization } from "@/contexts/organization-context";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,41 +20,6 @@ import {
 import { MoreVertical, Plus, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
 
-const mockApps = [
-  {
-    id: "app_1",
-    name: "Reciit",
-    appId: "pk_live_abc123def456",
-    status: "Active",
-    subscriptions: 284,
-    createdDate: "Dec 1, 2024",
-  },
-  {
-    id: "app_2",
-    name: "Votera",
-    appId: "pk_live_xyz789uvw012",
-    status: "Active",
-    subscriptions: 156,
-    createdDate: "Nov 15, 2024",
-  },
-  {
-    id: "app_3",
-    name: "Brodkast",
-    appId: "pk_live_fgh345ijk678",
-    status: "Paused",
-    subscriptions: 0,
-    createdDate: "Oct 22, 2024",
-  },
-  {
-    id: "app_4",
-    name: "Flenza",
-    appId: "pk_live_mno901pqr234",
-    status: "Active",
-    subscriptions: 89,
-    createdDate: "Sep 10, 2024",
-  },
-];
-
 export default function AppsContent() {
   return (
     <>
@@ -61,7 +29,9 @@ export default function AppsContent() {
       <Unauthenticated>
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
           <div className="text-center space-y-4">
-            <h1 className="text-2xl font-semibold text-slate-900">Welcome to CrediBill</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              Welcome to CrediBill
+            </h1>
             <p className="text-slate-600">Please sign in to manage your apps</p>
             <SignInButton mode="modal">
               <Button>Sign In</Button>
@@ -74,7 +44,12 @@ export default function AppsContent() {
 }
 
 function AppsManager() {
-  const isEmpty = false;
+  const { selectedOrg } = useOrganization();
+  const apps = useQuery(
+    api.apps.getUserApps,
+    selectedOrg?._id ? { organizationId: selectedOrg._id } : "skip"
+  );
+  const isEmpty = !apps || apps.length === 0;
 
   if (isEmpty) {
     return (
@@ -165,11 +140,11 @@ function AppsManager() {
                       </tr>
                     </thead>
                     <tbody>
-                      {mockApps.map((app, idx) => (
+                      {apps?.map((app, idx) => (
                         <tr
-                          key={app.id}
+                          key={app._id}
                           className={`text-sm ${
-                            idx !== mockApps.length - 1
+                            idx !== (apps?.length || 0) - 1
                               ? "border-b border-slate-200"
                               : ""
                           }`}
@@ -181,28 +156,27 @@ function AppsManager() {
                           </td>
                           <td className="px-4 py-4">
                             <code className="text-xs text-slate-600">
-                              {app.appId}
+                              {app._id}
                             </code>
                           </td>
                           <td className="px-4 py-4">
                             <Badge
-                              variant={
-                                app.status === "Active" ? "default" : "outline"
-                              }
-                              className={
-                                app.status === "Active"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : ""
-                              }
+                              variant="default"
+                              className="bg-emerald-100 text-emerald-800"
                             >
-                              {app.status}
+                              Active
                             </Badge>
                           </td>
+                          <td className="px-4 py-4 text-slate-600">0</td>
                           <td className="px-4 py-4 text-slate-600">
-                            {app.subscriptions}
-                          </td>
-                          <td className="px-4 py-4 text-slate-600">
-                            {app.createdDate}
+                            {new Date(app._creationTime).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              }
+                            )}
                           </td>
                           <td className="px-4 py-4 text-right">
                             <AppActionMenu />
@@ -217,8 +191,8 @@ function AppsManager() {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {mockApps.map((app) => (
-              <Card key={app.id} className="border border-slate-200 bg-white">
+            {apps?.map((app) => (
+              <Card key={app._id} className="border border-slate-200 bg-white">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 space-y-2">
@@ -227,30 +201,31 @@ function AppsManager() {
                           {app.name}
                         </p>
                         <Badge
-                          variant={
-                            app.status === "Active" ? "default" : "outline"
-                          }
-                          className={
-                            app.status === "Active"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : ""
-                          }
+                          variant="default"
+                          className="bg-emerald-100 text-emerald-800"
                         >
-                          {app.status}
+                          Active
                         </Badge>
                       </div>
 
                       <p className="text-xs text-slate-500">
-                        <code>{app.appId}</code>
+                        <code>{app._id}</code>
                       </p>
 
                       <div className="pt-1">
                         <p className="text-sm text-slate-600">
-                          {app.subscriptions} subscription
-                          {app.subscriptions !== 1 ? "s" : ""}
+                          0 subscriptions
                         </p>
                         <p className="text-xs text-slate-500">
-                          Created {app.createdDate}
+                          Created{" "}
+                          {new Date(app._creationTime).toLocaleDateString(
+                            "en-US",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            }
+                          )}
                         </p>
                       </div>
                     </div>
