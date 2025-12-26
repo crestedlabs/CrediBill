@@ -2,6 +2,31 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "./users";
 
+// Get a single app by ID
+export const getAppById = query({
+  args: { appId: v.id("apps") },
+  handler: async (ctx, { appId }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Get the app
+    const app = await ctx.db.get(appId);
+    if (!app) throw new Error("App not found");
+
+    // Verify user has access to this organization
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) throw new Error("Access denied to organization");
+
+    return app;
+  },
+});
+
 export const getUserApps = query({
   args: { organizationId: v.optional(v.id("organizations")) },
   handler: async (ctx, { organizationId }) => {
@@ -37,14 +62,7 @@ export const getUserApps = query({
       .withIndex("by_org", (q) => q.eq("organizationId", targetOrgId))
       .collect();
 
-    return apps.map((app) => ({
-      _id: app._id,
-      name: app.name,
-      description: app.description,
-      status: app.status,
-      mode: app.mode,
-      _creationTime: app._creationTime,
-    }));
+    return apps;
   },
 });
 

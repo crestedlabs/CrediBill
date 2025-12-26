@@ -67,7 +67,7 @@ export const createPlanDefaults: CreatePlanFormData = {
   appId: "",
   pricingModel: "flat",
   baseAmount: 0,
-  currency: "ugx",
+  currency: "UGX",
   interval: "monthly",
   usageMetric: "",
   unitPrice: 0,

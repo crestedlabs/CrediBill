@@ -12,8 +12,12 @@ import type * as apiKeys from "../apiKeys.js";
 import type * as apps from "../apps.js";
 import type * as customers from "../customers.js";
 import type * as http from "../http.js";
+import type * as invoices from "../invoices.js";
 import type * as organizations from "../organizations.js";
+import type * as payments from "../payments.js";
 import type * as plans from "../plans.js";
+import type * as subscriptions from "../subscriptions.js";
+import type * as usage from "../usage.js";
 import type * as users from "../users.js";
 import type * as webhooks from "../webhooks.js";
 
@@ -28,8 +32,12 @@ declare const fullApi: ApiFromModules<{
   apps: typeof apps;
   customers: typeof customers;
   http: typeof http;
+  invoices: typeof invoices;
   organizations: typeof organizations;
+  payments: typeof payments;
   plans: typeof plans;
+  subscriptions: typeof subscriptions;
+  usage: typeof usage;
   users: typeof users;
   webhooks: typeof webhooks;
 }>;

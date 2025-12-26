@@ -107,7 +107,7 @@ export const createPlan = mutation({
       appId: args.appId,
       pricingModel: args.pricingModel,
       baseAmount: args.baseAmount,
-      currency: args.currency,
+      currency: args.currency as "UGX" | "KES" | "RWF" | "TZS" | "USD",
       interval: args.interval,
       usageMetric: args.usageMetric,
       unitPrice: args.unitPrice,
@@ -131,11 +131,7 @@ export const updatePlan = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     pricingModel: v.optional(
-      v.union(
-        v.literal("flat"),
-        v.literal("usage"),
-        v.literal("hybrid")
-      )
+      v.union(v.literal("flat"), v.literal("usage"), v.literal("hybrid"))
     ),
     baseAmount: v.optional(v.number()),
     currency: v.optional(v.string()),
@@ -187,59 +183,62 @@ export const updatePlan = mutation({
 
     // Build updates object
     const updates: any = {};
-    
+
     if (args.name !== undefined) {
       if (args.name.length < 3) {
         throw new Error("Plan name must be at least 3 characters");
       }
       updates.name = args.name;
     }
-    
+
     if (args.description !== undefined) {
       updates.description = args.description;
     }
-    
+
     if (args.pricingModel !== undefined) {
       updates.pricingModel = args.pricingModel;
     }
-    
+
     if (args.baseAmount !== undefined) {
       updates.baseAmount = args.baseAmount;
     }
-    
+
     if (args.currency !== undefined) {
       updates.currency = args.currency;
     }
-    
+
     if (args.interval !== undefined) {
       updates.interval = args.interval;
     }
-    
+
     if (args.usageMetric !== undefined) {
       updates.usageMetric = args.usageMetric;
     }
-    
+
     if (args.unitPrice !== undefined) {
       updates.unitPrice = args.unitPrice;
     }
-    
+
     if (args.freeUnits !== undefined) {
       updates.freeUnits = args.freeUnits;
     }
-    
+
     if (args.status !== undefined) {
       updates.status = args.status;
     }
-    
+
     if (args.mode !== undefined) {
       updates.mode = args.mode;
     }
 
     // Validate based on updated pricing model
     const finalPricingModel = args.pricingModel || plan.pricingModel;
-    const finalBaseAmount = args.baseAmount !== undefined ? args.baseAmount : plan.baseAmount;
-    const finalUsageMetric = args.usageMetric !== undefined ? args.usageMetric : plan.usageMetric;
-    const finalUnitPrice = args.unitPrice !== undefined ? args.unitPrice : plan.unitPrice;
+    const finalBaseAmount =
+      args.baseAmount !== undefined ? args.baseAmount : plan.baseAmount;
+    const finalUsageMetric =
+      args.usageMetric !== undefined ? args.usageMetric : plan.usageMetric;
+    const finalUnitPrice =
+      args.unitPrice !== undefined ? args.unitPrice : plan.unitPrice;
 
     if (finalPricingModel === "flat" && !finalBaseAmount) {
       throw new Error("Base amount is required for flat pricing");

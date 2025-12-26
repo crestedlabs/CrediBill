@@ -1,4 +1,4 @@
-import SettingsContent from "@/components/settings-content";
+import SettingsContent from "@/components/settings/settings-content";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

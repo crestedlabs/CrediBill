@@ -1,4 +1,4 @@
-import AppsContent from "@/components/apps-content";
+import AppsContent from "@/components/apps/apps-content";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

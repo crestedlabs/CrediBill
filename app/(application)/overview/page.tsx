@@ -1,4 +1,4 @@
-import OverviewContent from "@/components/overview-content";
+import OverviewContent from "@/components/overview/overview-content";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {

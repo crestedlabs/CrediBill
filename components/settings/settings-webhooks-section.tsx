@@ -30,7 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { MoreVertical, Trash, Webhook } from "lucide-react";
-import { AddWebhookDialog } from "@/components/add-webhook-dialog";
+import { AddWebhookDialog } from "@/components/settings/add-webhook-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";

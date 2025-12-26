@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import CreateOrganizationContent from "@/components/create-organization-content";
+import CreateOrganizationContent from "@/components/organizations/create-organization-content";
 
 export const metadata: Metadata = {
   title: "Create Organization - CrediBill",

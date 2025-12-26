@@ -28,10 +28,10 @@ import {
   Settings,
   Plus,
 } from "lucide-react";
-import AppsContent from "@/components/apps-content";
-import SettingsTeam from "@/components/settings-team";
-import OrganizationNameEdit from "@/components/organization-name-edit";
-import OrganizationDeleteDialog from "@/components/organization-delete-dialog";
+import AppsContent from "@/components/apps/apps-content";
+import SettingsTeam from "@/components/settings/settings-team";
+import OrganizationNameEdit from "@/components/organizations/organization-name-edit";
+import OrganizationDeleteDialog from "@/components/organizations/organization-delete-dialog";
 import { useRouter } from "next/navigation";
 import { Id } from "@/convex/_generated/dataModel";
 

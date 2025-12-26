@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Plus, PackageOpen } from "lucide-react";
-import { CreatePlanDialog } from "@/components/create-plan-dialog";
+import { CreatePlanDialog } from "@/components/plans/create-plan-dialog";
 import { PlanCard } from "@/components/plans/plan-card";
 import { useApp } from "@/contexts/app-context";
 

@@ -26,12 +26,13 @@ export function EditPlanForm({
   className,
 }: EditPlanFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
   const [formData, setFormData] = useState({
     name: plan?.name || "",
     description: plan?.description || "",
     pricingModel: (plan?.pricingModel || "flat") as "flat" | "usage" | "hybrid",
     baseAmount: plan?.baseAmount as number | undefined,
-    currency: plan?.currency || "USD",
+    currency: plan?.currency || "UGX",
     interval: (plan?.interval || "monthly") as
       | "monthly"
       | "quarterly"
@@ -62,8 +63,29 @@ export function EditPlanForm({
         status: plan.status,
         mode: plan.mode,
       });
+      setHasChanges(false);
     }
   }, [plan]);
+
+  // Detect changes
+  useEffect(() => {
+    if (!plan) return;
+
+    const changed =
+      formData.name !== plan.name ||
+      (formData.description || "") !== (plan.description || "") ||
+      formData.pricingModel !== plan.pricingModel ||
+      formData.baseAmount !== plan.baseAmount ||
+      formData.currency !== plan.currency ||
+      formData.interval !== plan.interval ||
+      (formData.usageMetric || "") !== (plan.usageMetric || "") ||
+      formData.unitPrice !== plan.unitPrice ||
+      formData.freeUnits !== plan.freeUnits ||
+      formData.status !== plan.status ||
+      formData.mode !== plan.mode;
+
+    setHasChanges(changed);
+  }, [formData, plan]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +171,7 @@ export function EditPlanForm({
     }
   };
 
-  const canSubmit = formData.name.length >= 3 && !isSubmitting;
+  const canSubmit = formData.name.length >= 3 && !isSubmitting && hasChanges;
 
   const pricingModels = [
     {
@@ -294,9 +316,11 @@ export function EditPlanForm({
                 setFormData((prev) => ({ ...prev, currency: value }))
               }
               options={[
-                { value: "USD", label: "USD ($)" },
-                { value: "EUR", label: "EUR (€)" },
-                { value: "GBP", label: "GBP (£)" },
+                { value: "UGX", label: "UGX (Ugandan Shilling)" },
+                { value: "KES", label: "KES (Kenyan Shilling)" },
+                { value: "RWF", label: "RWF (Rwandan Franc)" },
+                { value: "TZS", label: "TZS (Tanzanian Shilling)" },
+                { value: "USD", label: "USD (US Dollar)" },
               ]}
               required
               disabled={isSubmitting}

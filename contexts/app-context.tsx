@@ -9,10 +9,21 @@ import { useOrganization } from "@/contexts/organization-context";
 type App = {
   _id: Id<"apps">;
   name: string;
-  description: string | undefined;
+  description?: string;
   status: "active" | "paused" | "archived";
-  mode: "live" | "test" | undefined;
+  mode?: "live" | "test";
   _creationTime: number;
+  defaultCurrency: "ugx" | "kes" | "tzs" | "rwf" | "usd";
+  timezone: "eat" | "cat" | "wat";
+  language: "en" | "sw" | "fr";
+  defaultPaymentMethod: "momo" | "credit-card" | "bank";
+  retryPolicy: "automatic" | "manual" | "none";
+  defaultTrialLength: number;
+  gracePeriod: number;
+  allowPlanDowngrades?: boolean;
+  requireBillingAddress?: boolean;
+  enableProration?: boolean;
+  autoSuspendOnFailedPayment?: boolean;
 };
 
 type AppContextType = {

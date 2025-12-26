@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { MoreVertical, Copy, Trash2, Key, Clock } from "lucide-react";
-import { CreateApiKeyDialog } from "@/components/create-api-key-dialog";
+import { CreateApiKeyDialog } from "@/components/settings/create-api-key-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import type { Id } from "@/convex/_generated/dataModel";

@@ -228,11 +228,11 @@ export function CreatePlanForm({
             setFormData((prev) => ({ ...prev, currency: value }))
           }
           options={[
-            { value: "ugx", label: "🇺🇬 UGX" },
-            { value: "kes", label: "🇰🇪 KES" },
-            { value: "tzs", label: "🇹🇿 TZS" },
-            { value: "rwf", label: "🇷🇼 RWF" },
-            { value: "usd", label: "🇺🇸 USD" },
+            { value: "UGX", label: "🇺🇬 UGX (Ugandan Shilling)" },
+            { value: "KES", label: "🇰🇪 KES (Kenyan Shilling)" },
+            { value: "TZS", label: "🇹🇿 TZS (Tanzanian Shilling)" },
+            { value: "RWF", label: "🇷🇼 RWF (Rwandan Franc)" },
+            { value: "USD", label: "🇺🇸 USD (US Dollar)" },
           ]}
           required
         />

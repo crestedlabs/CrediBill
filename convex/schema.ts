@@ -114,7 +114,11 @@ export default defineSchema({
     .index("by_org", ["organizationId"])
     .index("by_app", ["appId"])
     .index("by_app_email", ["appId", "email"])
-    .index("by_external", ["externalCustomerId"]),
+    .index("by_external", ["externalCustomerId"])
+    .searchIndex("search_customers", {
+      searchField: "email",
+      filterFields: ["appId", "status"],
+    }),
 
   // Plans, a customer subscribes to a plan
   plans: defineTable({
@@ -128,7 +132,13 @@ export default defineSchema({
       v.literal("hybrid")
     ),
     baseAmount: v.optional(v.number()), // smallest unit
-    currency: v.string(),
+    currency: v.union(
+      v.literal("UGX"),
+      v.literal("KES"),
+      v.literal("RWF"),
+      v.literal("TZS"),
+      v.literal("USD")
+    ),
     interval: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
@@ -143,21 +153,6 @@ export default defineSchema({
   })
     .index("by_app", ["appId"])
     .index("by_pricing_model", ["pricingModel"]),
-
-  //Usage Events table
-  usageEvents: defineTable({
-    organizationId: v.id("organizations"),
-    appId: v.id("apps"),
-    customerId: v.id("customers"),
-    subscriptionId: v.id("subscriptions"),
-    metric: v.string(), // must match plan.usageMetric
-    quantity: v.number(), // e.g. 1 API call, 5 messages
-    occurredAt: v.number(), // when usage happened
-  })
-    .index("by_subscription", ["subscriptionId"])
-    .index("by_customer", ["customerId"])
-    .index("by_metric", ["metric"])
-    .index("by_time", ["occurredAt"]),
 
   // Usage Summaries (This is not so important for me but makes it easy for me to generate invoices)
   usageSummaries: defineTable({
@@ -249,7 +244,7 @@ export default defineSchema({
     appId: v.id("apps"),
     customerId: v.id("customers"),
     invoiceId: v.id("invoices"),
-    amount: v.number(),
+    amount: v.number(), // smallest currency unit
     currency: v.string(),
     status: v.union(
       v.literal("pending"),
@@ -257,19 +252,32 @@ export default defineSchema({
       v.literal("failed"),
       v.literal("refunded")
     ),
-    provider: v.union(
-      v.literal("pawapay"),
-      v.literal("flutterwave"),
-      v.literal("dpo"),
-      v.literal("pesapal"),
-      v.literal("stripe"),
-      v.literal("paystack"),
-      v.literal("paytoto")
+    // Payment method/provider
+    paymentMethod: v.union(
+      v.literal("momo"), // Mobile Money
+      v.literal("credit-card"),
+      v.literal("bank"),
+      v.literal("cash"),
+      v.literal("other")
     ),
-    providerPaymentId: v.optional(v.string()), // PSP transaction ID
+    provider: v.optional(
+      v.union(
+        v.literal("pawapay"),
+        v.literal("flutterwave"),
+        v.literal("dpo"),
+        v.literal("pesapal"),
+        v.literal("stripe"),
+        v.literal("paystack"),
+        v.literal("paytoto"),
+        v.literal("manual") // For manual entry
+      )
+    ),
+    providerPaymentId: v.optional(v.string()), // PSP transaction ID or manual reference
     providerMetadata: v.optional(v.any()), // raw PSP response
-    paidAt: v.optional(v.number()), // when payment actually completed
-    metadata: v.optional(v.any()), // any internal notes
+    paidAt: v.number(), // when payment actually completed
+    notes: v.optional(v.string()), // Internal notes (e.g., "Bank transfer ref: 12345")
+    recordedBy: v.optional(v.id("users")), // User who recorded manual payment
+    metadata: v.optional(v.any()), // any additional internal data
   })
     .index("by_invoice", ["invoiceId"])
     .index("by_customer", ["customerId"])
@@ -277,6 +285,26 @@ export default defineSchema({
     .index("by_status", ["status"])
     .index("by_provider", ["provider"])
     .index("by_providerPaymentId", ["providerPaymentId"]),
+
+  // Usage Events Table
+  usageEvents: defineTable({
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+    customerId: v.id("customers"),
+    subscriptionId: v.id("subscriptions"),
+    quantity: v.number(), // number of units consumed
+    metric: v.string(), // e.g., "api_calls", "storage_gb", "sms_sent"
+    timestamp: v.number(), // when this usage occurred
+    eventId: v.optional(v.string()), // external event ID for deduplication
+    metadata: v.optional(v.any()), // additional data from external app
+  })
+    .index("by_subscription", ["subscriptionId"])
+    .index("by_customer", ["customerId"])
+    .index("by_app", ["appId"])
+    .index("by_metric", ["metric"])
+    .index("by_timestamp", ["timestamp"])
+    .index("by_eventId", ["eventId"])
+    .index("by_subscription_timestamp", ["subscriptionId", "timestamp"]),
 
   // Webhooks Table
   webhooks: defineTable({

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Edit, Trash2 } from "lucide-react";
 import { EditPlanDialog } from "@/components/plans/edit-plan-dialog";
+import { DeletePlanDialog } from "@/components/plans/delete-plan-dialog";
 import { toast } from "sonner";
 
 interface PlanActionMenuProps {
@@ -23,23 +24,17 @@ interface PlanActionMenuProps {
 export function PlanActionMenu({ plan }: PlanActionMenuProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const deletePlanMutation = useMutation(api.plans.deletePlan);
 
   const handleDelete = async () => {
-    if (
-      !confirm(
-        `Are you sure you want to delete "${plan.name}"? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
-
     setIsDeleting(true);
     try {
       await deletePlanMutation({ planId: plan._id });
       toast.success("Plan deleted successfully", {
         description: `${plan.name} has been removed`,
       });
+      setShowDeleteDialog(false);
     } catch (error: any) {
       toast.error("Failed to delete plan", {
         description: error.message || "Please try again",
@@ -65,11 +60,11 @@ export function PlanActionMenu({ plan }: PlanActionMenuProps) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="text-red-600"
-            onClick={handleDelete}
+            onClick={() => setShowDeleteDialog(true)}
             disabled={isDeleting}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            {isDeleting ? "Deleting..." : "Delete plan"}
+            Delete plan
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -81,6 +76,14 @@ export function PlanActionMenu({ plan }: PlanActionMenuProps) {
         onSuccess={() => {
           toast.success("Plan updated successfully");
         }}
+      />
+
+      <DeletePlanDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        onConfirm={handleDelete}
+        planName={plan.name}
+        isDeleting={isDeleting}
       />
     </>
   );

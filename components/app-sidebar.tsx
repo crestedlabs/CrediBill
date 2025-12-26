@@ -10,6 +10,7 @@ import {
   Settings,
   CreditCard,
   Plus,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -45,6 +46,7 @@ const data: { apps: string[]; organizations: string[]; navItems: NavItem[] } = {
   navItems: [
     { title: "Overview", url: "/overview", icon: Home },
     { title: "Customers", url: "/customers", icon: Users },
+    { title: "Subscriptions", url: "/subscriptions", icon: RefreshCw },
     { title: "Plans", url: "/plans", icon: List },
     { title: "Invoices", url: "/invoices", icon: File },
     { title: "Settings", url: "/settings", icon: Settings },

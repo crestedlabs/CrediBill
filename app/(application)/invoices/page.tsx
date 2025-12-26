@@ -1,4 +1,4 @@
-import InvoicesContent from "@/components/invoices-content";
+import InvoicesContent from "@/components/invoices/invoices-content";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
