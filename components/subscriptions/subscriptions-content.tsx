@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 import { GenerateInvoiceDialog } from "@/components/invoices/generate-invoice-dialog";
 
 export default function SubscriptionsContent() {
@@ -369,8 +370,9 @@ function SubscriptionActionMenu({
       setShowCancelDialog(false);
       setShowCancelEndDialog(false);
     } catch (error: any) {
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to update subscription", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsProcessing(false);
@@ -394,8 +396,9 @@ function SubscriptionActionMenu({
         toast.info("Subscription expired (one-time plan)");
       }
     } catch (error: any) {
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to renew subscription", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsProcessing(false);

@@ -52,19 +52,26 @@ export function CreatePlanDialog({ appId, trigger }: CreatePlanDialogProps) {
             </Button>
           )}
         </DialogTrigger>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create New Plan</DialogTitle>
-            <DialogDescription>
-              Set up a new pricing plan for your application. Define the pricing
-              model, billing interval, and usage parameters.
-            </DialogDescription>
-          </DialogHeader>
-          <CreatePlanForm
-            appId={appId}
-            onSuccess={handleSuccess}
-            onCancel={handleCancel}
-          />
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          {/* Fixed Header */}
+          <div className="border-b border-slate-200 p-6 pb-4">
+            <DialogHeader className="space-y-1">
+              <DialogTitle>Create New Plan</DialogTitle>
+              <DialogDescription>
+                Set up a new pricing plan for your application. Define the
+                pricing model, billing interval, and usage parameters.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="overflow-y-auto flex-1 px-6 py-4">
+            <CreatePlanForm
+              appId={appId}
+              onSuccess={handleSuccess}
+              onCancel={handleCancel}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     );
@@ -80,8 +87,9 @@ export function CreatePlanDialog({ appId, trigger }: CreatePlanDialogProps) {
           </Button>
         )}
       </DrawerTrigger>
-      <DrawerContent className="max-h-[96vh]">
-        <div className="overflow-y-auto">
+      <DrawerContent className="max-h-[96vh] flex flex-col">
+        {/* Fixed Header */}
+        <div className="border-b border-slate-200">
           <DrawerHeader className="text-left">
             <DrawerTitle>Create New Plan</DrawerTitle>
             <DrawerDescription>
@@ -89,13 +97,21 @@ export function CreatePlanDialog({ appId, trigger }: CreatePlanDialogProps) {
               model, billing interval, and usage parameters.
             </DrawerDescription>
           </DrawerHeader>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto flex-1 px-4 py-4">
           <CreatePlanForm
             appId={appId}
             onSuccess={handleSuccess}
             onCancel={handleCancel}
-            className="px-4"
+            className=""
           />
-          <DrawerFooter className="pt-2">
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="border-t border-slate-200">
+          <DrawerFooter className="pt-4">
             <DrawerClose asChild>
               <Button variant="outline">Cancel</Button>
             </DrawerClose>

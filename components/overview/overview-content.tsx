@@ -1,9 +1,10 @@
 "use client";
 
-import { Authenticated, Unauthenticated } from "convex/react";
+import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
 import { useApp } from "@/contexts/app-context";
 import Link from "next/link";
+import { api } from "@/convex/_generated/api";
 
 import {
   Card,
@@ -11,19 +12,9 @@ import {
   CardTitle,
   CardDescription,
   CardContent,
-  CardFooter,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-  SelectGroup,
-} from "@/components/ui/select";
 import {
   CheckCircle,
   AlertTriangle,
@@ -31,123 +22,14 @@ import {
   DollarSign,
   PackageOpen,
   Plus,
+  Users,
+  TrendingUp,
+  TrendingDown,
+  Activity,
+  CreditCard,
 } from "lucide-react";
 
-type SubscriptionStatus =
-  | "TRIALING"
-  | "ACTIVE"
-  | "PAST_DUE"
-  | "CANCELED"
-  | "EXPIRED";
 
-const mockSummaryData = [
-  {
-    label: "Active Subscriptions",
-    value: "846",
-    change: "+3.2%",
-    icon: CheckCircle,
-    iconColor: "text-emerald-600",
-    valueColor: "text-emerald-600",
-  },
-  {
-    label: "Trials Expiring Soon",
-    value: "12",
-    change: "Next 7 days",
-    icon: Calendar,
-    iconColor: "text-amber-600",
-    valueColor: "text-amber-600",
-  },
-  {
-    label: "Past Due Subscriptions",
-    value: "9",
-    change: "Urgent",
-    icon: AlertTriangle,
-    iconColor: "text-red-600",
-    valueColor: "text-red-600",
-  },
-  {
-    label: "MRR",
-    value: "852K",
-    currency: "UGX",
-    change: "This month",
-    icon: DollarSign,
-    iconColor: "text-blue-600",
-    valueColor: "text-blue-600",
-  },
-];
-
-const mockStatusBreakdown = [
-  {
-    status: "TRIALING",
-    count: 12,
-    color: "bg-blue-500",
-    textColor: "text-blue-700",
-    label: "Trialing",
-  },
-  {
-    status: "ACTIVE",
-    count: 842,
-    color: "bg-emerald-500",
-    textColor: "text-emerald-700",
-    label: "Active",
-  },
-  {
-    status: "PAST_DUE",
-    count: 9,
-    color: "bg-red-500",
-    textColor: "text-red-700",
-    label: "Past Due",
-  },
-  {
-    status: "CANCELED",
-    count: 24,
-    color: "bg-slate-400",
-    textColor: "text-slate-700",
-    label: "Canceled",
-  },
-  {
-    status: "EXPIRED",
-    count: 3,
-    color: "bg-slate-300",
-    textColor: "text-slate-600",
-    label: "Expired",
-  },
-];
-
-const mockRecentActivity = [
-  {
-    id: 1,
-    time: "2 hours ago",
-    event: "Payment processed",
-    subscription: "sub_Ja8k9...",
-    app: "Main App",
-    status: "ACTIVE" as SubscriptionStatus,
-  },
-  {
-    id: 2,
-    time: "5 hours ago",
-    event: "Trial started",
-    subscription: "sub_Tx39d...",
-    app: "Marketing",
-    status: "TRIALING" as SubscriptionStatus,
-  },
-  {
-    id: 3,
-    time: "1 day ago",
-    event: "Subscription canceled",
-    subscription: "sub_Bx22z...",
-    app: "Internal",
-    status: "CANCELED" as SubscriptionStatus,
-  },
-  {
-    id: 4,
-    time: "2 days ago",
-    event: "Payment failed",
-    subscription: "sub_Dv88c...",
-    app: "Main App",
-    status: "PAST_DUE" as SubscriptionStatus,
-  },
-];
 
 export default function OverviewContent() {
   return (
@@ -225,164 +107,368 @@ function OverviewManager() {
 }
 
 function OverviewDashboard() {
+  const { selectedApp } = useApp();
+  const metrics = useQuery(
+    api.overview.getOverviewMetrics,
+    selectedApp ? { appId: selectedApp._id } : {}
+  );
+
+  if (!metrics) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm px-4 py-6 sm:px-6 lg:px-8">
+          <div className="max-w-7xl mx-auto">
+            <h1 className="text-2xl font-bold text-slate-900">Overview</h1>
+            <p className="text-sm text-slate-600 mt-1">
+              Loading your business metrics...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Primary currency (most used)
+  const primaryCurrency = Object.entries(metrics.currencyBreakdown).sort(
+    ([, a], [, b]) => b - a
+  )[0]?.[0] || "USD";
+
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* Header */}
-      <div className="border-b border-slate-200 bg-white px-4 py-6 sm:px-6 lg:px-8">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Overview</h1>
-          <p className="text-sm text-slate-600">
-            Billing and subscription health at a glance
+      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-sm px-4 py-6 sm:px-6 lg:px-8 shadow-sm">
+        <div className="max-w-7xl mx-auto">
+          <h1 className="text-2xl font-bold text-slate-900">Overview</h1>
+          <p className="text-sm text-slate-600 mt-1">
+            Real-time business metrics and performance
           </p>
         </div>
       </div>
 
       {/* Content */}
-      <div className="px-4 py-6 sm:px-6 lg:px-8">
-        <div className="space-y-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {mockSummaryData.map((item, idx) => {
-              const Icon = item.icon;
-              return (
-                <Card key={idx} className="border border-slate-200 bg-white">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <p className="text-xs font-medium text-slate-600">
-                          {item.label}
-                        </p>
-                        <div className="flex items-baseline gap-1">
-                          {item.currency && (
-                            <span className="text-lg font-medium text-slate-500 uppercase tracking-wide">
-                              {item.currency}
-                            </span>
-                          )}
-                          <span
-                            className={`text-3xl font-bold ${item.valueColor}`}
-                          >
-                            {item.currency ? item.value : item.value}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-600">
-                          {item.change}
-                        </p>
-                      </div>
-                      <div
-                        className={`rounded-lg bg-slate-50 p-2 ${item.iconColor}`}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+      <div className="px-4 py-8 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Key Metrics Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* MRR Card - Emerald/Teal gradient: represents money, growth, prosperity, and financial success */}
+            <Card className="border-0 shadow-md bg-gradient-to-br from-emerald-500 to-teal-600 text-white overflow-hidden relative">
+              <div className="absolute top-0 right-0 -mr-4 -mt-4 h-24 w-24 rounded-full bg-white/10"></div>
+              <CardContent className="p-6 relative">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-emerald-50">
+                    Monthly Recurring Revenue
+                  </p>
+                  <DollarSign className="h-5 w-5 text-emerald-50" />
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-emerald-50">
+                    {primaryCurrency}
+                  </span>
+                  <p className="text-3xl font-bold">
+                    {metrics.mrr.toLocaleString()}
+                  </p>
+                </div>
+                <p className="text-xs text-emerald-50 mt-2">
+                  Normalized to monthly
+                </p>
+              </CardContent>
+            </Card>
 
-          {/* Status Breakdown & Recent Activity */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Subscription Status Breakdown */}
-            <Card className="border border-slate-200 bg-white">
-              <CardHeader>
-                <CardTitle className="text-base">Subscription Status</CardTitle>
-                <CardDescription>Breakdown by status</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {mockStatusBreakdown.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`h-3 w-3 rounded-full ${item.color}`}
-                        ></div>
-                        <div>
-                          <p className="text-sm font-medium">{item.label}</p>
-                          <p className="text-xs text-slate-500">
-                            {item.status}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-sm font-semibold">{item.count}</p>
-                    </div>
-                  ))}
+            {/* Active Subscriptions */}
+            <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-all">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-slate-600">
+                    Active Subscriptions
+                  </p>
+                  <div className="p-2 bg-emerald-50 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-emerald-600" />
+                  </div>
+                </div>
+                <p className="text-3xl font-bold text-slate-900">
+                  {metrics.activeSubscriptions.toLocaleString()}
+                </p>
+                <div className="flex items-center gap-1 mt-2">
+                  <TrendingUp className="h-3 w-3 text-emerald-600" />
+                  <p className="text-xs text-emerald-600 font-medium">
+                    Healthy
+                  </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Recent Activity */}
-            <Card className="border border-slate-200 bg-white lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-base">Recent Activity</CardTitle>
-                <CardDescription>Latest subscription events</CardDescription>
+            {/* Total Customers */}
+            <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-all">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-slate-600">
+                    Total Customers
+                  </p>
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <Users className="h-5 w-5 text-purple-600" />
+                  </div>
+                </div>
+                <p className="text-3xl font-bold text-slate-900">
+                  {metrics.totalCustomers.toLocaleString()}
+                </p>
+                <p className="text-xs text-slate-500 mt-2">
+                  {metrics.totalSubscriptions} total subscriptions
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Churn Rate - TODO: Bring back when we reach production stage */}
+            {/* 
+            <Card className="border-0 shadow-md bg-white hover:shadow-lg transition-all">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-medium text-slate-600">
+                    Churn Rate
+                  </p>
+                  <div className="p-2 bg-amber-50 rounded-lg">
+                    <Activity className="h-5 w-5 text-amber-600" />
+                  </div>
+                </div>
+                <p className="text-3xl font-bold text-slate-900">
+                  {metrics.churnRate}%
+                </p>
+                <p className="text-xs text-slate-500 mt-2">Last 30 days</p>
+              </CardContent>
+            </Card>
+            */}
+          </div>
+
+          {/* Secondary Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Trials */}
+            <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-all">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                      Trial Subscriptions
+                    </p>
+                    <p className="text-2xl font-bold text-blue-600 mt-1">
+                      {metrics.trialingSubscriptions}
+                    </p>
+                  </div>
+                  <Calendar className="h-8 w-8 text-blue-400" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Expiring Soon */}
+            <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-all">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                      Expiring Soon
+                    </p>
+                    <p className="text-2xl font-bold text-amber-600 mt-1">
+                      {metrics.trialsExpiringSoon}
+                    </p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-amber-400" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Past Due */}
+            <Card className="border-0 shadow-sm bg-white hover:shadow-md transition-all">
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+                      Past Due
+                    </p>
+                    <p className="text-2xl font-bold text-red-600 mt-1">
+                      {metrics.pastDueSubscriptions}
+                    </p>
+                  </div>
+                  <CreditCard className="h-8 w-8 text-red-400" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Plan Performance & Revenue Breakdown */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Top Performing Plans */}
+            <Card className="border-0 shadow-md bg-white">
+              <CardHeader className="border-b border-slate-100">
+                <CardTitle className="text-lg font-semibold text-slate-900">
+                  Top Performing Plans
+                </CardTitle>
+                <CardDescription>By Monthly Recurring Revenue</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="border-t border-slate-200 bg-slate-50">
-                      <tr className="text-left text-xs font-semibold text-slate-700">
-                        <th className="px-4 py-3">When</th>
-                        <th className="px-4 py-3">Event</th>
-                        <th className="px-4 py-3">Subscription</th>
-                        <th className="px-4 py-3">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mockRecentActivity.map((item, idx) => (
-                        <tr
-                          key={idx}
-                          className="border-t border-slate-200 text-sm"
-                        >
-                          <td className="px-4 py-3 text-slate-600">
-                            {item.time}
-                          </td>
-                          <td className="px-4 py-3">{item.event}</td>
-                          <td className="px-4 py-3 font-mono text-slate-600">
-                            {item.subscription}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge
-                              className={`text-xs ${
-                                item.status === "ACTIVE"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : item.status === "TRIALING"
-                                    ? "bg-blue-100 text-blue-800"
-                                    : item.status === "PAST_DUE"
-                                      ? "bg-red-100 text-red-800"
-                                      : item.status === "CANCELED"
-                                        ? "bg-slate-100 text-slate-700"
-                                        : "bg-slate-100 text-slate-600"
-                              }`}
-                            >
-                              {item.status}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="divide-y divide-slate-100">
+                  {metrics.planPerformance.length > 0 ? (
+                    metrics.planPerformance.map((plan, idx) => (
+                      <div
+                        key={plan.planId}
+                        className="p-4 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white text-sm font-bold">
+                              {idx + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900">
+                                {plan.planName}
+                              </p>
+                              <p className="text-xs text-slate-500">
+                                {plan.subscribers} subscribers
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {plan.currency} {plan.mrr.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-slate-500">MRR</p>
+                          </div>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
+                            style={{
+                              width: `${Math.min(
+                                (plan.mrr /
+                                  metrics.planPerformance[0].mrr) *
+                                  100,
+                                100
+                              )}%`,
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-slate-500">
+                      <p className="text-sm">No plans with active subscribers yet</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
-              <CardFooter className="justify-between border-t border-slate-200 text-xs text-slate-600">
-                <span>Showing {mockRecentActivity.length} recent events</span>
-                <Button variant="link" size="sm" className="text-xs">
-                  View all events
-                </Button>
-              </CardFooter>
+            </Card>
+
+            {/* Revenue by Currency */}
+            <Card className="border-0 shadow-md bg-white">
+              <CardHeader className="border-b border-slate-100">
+                <CardTitle className="text-lg font-semibold text-slate-900">
+                  Revenue by Currency
+                </CardTitle>
+                <CardDescription>
+                  MRR breakdown across currencies
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                {Object.keys(metrics.currencyBreakdown).length > 0 ? (
+                  <div className="space-y-4">
+                    {Object.entries(metrics.currencyBreakdown)
+                      .sort(([, a], [, b]) => b - a)
+                      .map(([currency, amount]) => {
+                        const total = Object.values(
+                          metrics.currencyBreakdown
+                        ).reduce((sum, val) => sum + val, 0);
+                        const percentage = total > 0 ? (amount / total) * 100 : 0;
+
+                        return (
+                          <div key={currency}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant="outline"
+                                  className="font-mono text-xs"
+                                >
+                                  {currency}
+                                </Badge>
+                                <span className="text-sm text-slate-600">
+                                  {percentage.toFixed(0)}%
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold text-slate-900">
+                                {Math.round(amount).toLocaleString()}
+                              </p>
+                            </div>
+                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all"
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-500">
+                    <p className="text-sm">No revenue data yet</p>
+                  </div>
+                )}
+              </CardContent>
             </Card>
           </div>
 
-          {/* Footer note */}
-          <div className="rounded-lg bg-white border border-slate-200 p-4">
-            <p className="text-sm text-slate-700">
-              💡 <span className="font-medium">Tip:</span> Use the status
-              breakdown to identify subscriptions requiring action. Contact
-              support for billing inquiries.
-            </p>
-          </div>
+          {/* Status Overview */}
+          <Card className="border-0 shadow-md bg-white">
+            <CardHeader className="border-b border-slate-100">
+              <CardTitle className="text-lg font-semibold text-slate-900">
+                Subscription Status Overview
+              </CardTitle>
+              <CardDescription>
+                Complete breakdown of all subscriptions
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                <div className="text-center p-4 bg-emerald-50 rounded-lg">
+                  <p className="text-2xl font-bold text-emerald-700">
+                    {metrics.activeSubscriptions}
+                  </p>
+                  <p className="text-xs font-medium text-emerald-600 mt-1">
+                    Active
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <p className="text-2xl font-bold text-blue-700">
+                    {metrics.trialingSubscriptions}
+                  </p>
+                  <p className="text-xs font-medium text-blue-600 mt-1">
+                    Trialing
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-red-50 rounded-lg">
+                  <p className="text-2xl font-bold text-red-700">
+                    {metrics.pastDueSubscriptions}
+                  </p>
+                  <p className="text-xs font-medium text-red-600 mt-1">
+                    Past Due
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-slate-100 rounded-lg">
+                  <p className="text-2xl font-bold text-slate-700">
+                    {metrics.canceledSubscriptions}
+                  </p>
+                  <p className="text-xs font-medium text-slate-600 mt-1">
+                    Canceled
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <p className="text-2xl font-bold text-purple-700">
+                    {metrics.totalRevenue.toLocaleString()}
+                  </p>
+                  <p className="text-xs font-medium text-purple-600 mt-1">
+                    Total Revenue
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

@@ -73,7 +73,7 @@ export default defineSchema({
     ),
 
     // Billing settings (required with defaults)
-    defaultTrialLength: v.number(), // days, default 14
+    defaultTrialLength: v.optional(v.number()), // DEPRECATED: Use plan-level trialDays instead
     gracePeriod: v.number(), // days, default 3
 
     // Advanced settings (optional with defaults)
@@ -145,6 +145,7 @@ export default defineSchema({
       v.literal("yearly"),
       v.literal("one-time")
     ),
+    trialDays: v.optional(v.number()), // Plan-specific trial period (0 = no trial)
     usageMetric: v.optional(v.string()), // e.g. "api_calls", "messages"
     unitPrice: v.optional(v.number()), // price per unit
     freeUnits: v.optional(v.number()), // included usage
@@ -182,7 +183,8 @@ export default defineSchema({
       v.literal("trialing"),
       v.literal("paused"),
       v.literal("cancelled"),
-      v.literal("expired")
+      v.literal("expired"),
+      v.literal("past_due") // Added for failed payments
     ),
     startDate: v.number(),
     currentPeriodStart: v.number(),
@@ -190,12 +192,20 @@ export default defineSchema({
     cancelAtPeriodEnd: v.optional(v.boolean()),
     usageQuantity: v.optional(v.number()), // aggregated from usageEvents or usageSummaries
     usageAmount: v.optional(v.number()), // computed charge
+
+    // Payment tracking fields
+    nextPaymentDate: v.optional(v.number()), // When next payment is due
+    lastPaymentDate: v.optional(v.number()), // Last successful payment
+    trialEndsAt: v.optional(v.number()), // Trial expiration timestamp
+    failedPaymentAttempts: v.optional(v.number()), // Count of failed payments
   })
     .index("by_customer", ["customerId"])
     .index("by_app", ["appId"])
     .index("by_plan", ["planId"])
     .index("by_status", ["status"])
-    .index("by_customer_plan", ["customerId", "planId"]),
+    .index("by_customer_plan", ["customerId", "planId"])
+    .index("by_next_payment", ["nextPaymentDate"])
+    .index("by_trial_end", ["trialEndsAt"]),
 
   //Invoices Table
   invoices: defineTable({
@@ -237,54 +247,6 @@ export default defineSchema({
     .index("by_app", ["appId"])
     .index("by_status", ["status"])
     .index("by_invoiceNumber", ["invoiceNumber"]),
-
-  // Payments Table
-  payments: defineTable({
-    organizationId: v.id("organizations"),
-    appId: v.id("apps"),
-    customerId: v.id("customers"),
-    invoiceId: v.id("invoices"),
-    amount: v.number(), // smallest currency unit
-    currency: v.string(),
-    status: v.union(
-      v.literal("pending"),
-      v.literal("completed"),
-      v.literal("failed"),
-      v.literal("refunded")
-    ),
-    // Payment method/provider
-    paymentMethod: v.union(
-      v.literal("momo"), // Mobile Money
-      v.literal("credit-card"),
-      v.literal("bank"),
-      v.literal("cash"),
-      v.literal("other")
-    ),
-    provider: v.optional(
-      v.union(
-        v.literal("pawapay"),
-        v.literal("flutterwave"),
-        v.literal("dpo"),
-        v.literal("pesapal"),
-        v.literal("stripe"),
-        v.literal("paystack"),
-        v.literal("paytoto"),
-        v.literal("manual") // For manual entry
-      )
-    ),
-    providerPaymentId: v.optional(v.string()), // PSP transaction ID or manual reference
-    providerMetadata: v.optional(v.any()), // raw PSP response
-    paidAt: v.number(), // when payment actually completed
-    notes: v.optional(v.string()), // Internal notes (e.g., "Bank transfer ref: 12345")
-    recordedBy: v.optional(v.id("users")), // User who recorded manual payment
-    metadata: v.optional(v.any()), // any additional internal data
-  })
-    .index("by_invoice", ["invoiceId"])
-    .index("by_customer", ["customerId"])
-    .index("by_app", ["appId"])
-    .index("by_status", ["status"])
-    .index("by_provider", ["provider"])
-    .index("by_providerPaymentId", ["providerPaymentId"]),
 
   // Usage Events Table
   usageEvents: defineTable({
@@ -340,4 +302,241 @@ export default defineSchema({
     .index("by_app", ["appId"])
     .index("by_org", ["organizationId"])
     .index("by_status", ["status"]),
+
+  // Payment Providers Table (Option 1: One provider per app)
+  // Each app connects their own payment provider account
+  // Money flows directly to app's account, not CrediBill
+  paymentProviders: defineTable({
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+
+    // Provider type
+    provider: v.union(
+      v.literal("flutterwave"),
+      v.literal("pawapay"),
+      v.literal("pesapal"),
+      v.literal("dpo"),
+      v.literal("paystack"),
+      v.literal("stripe")
+    ),
+
+    // Encrypted credentials (app's keys, not CrediBill's)
+    credentials: v.object({
+      publicKey: v.optional(v.string()), // Some providers have public keys
+      secretKeyEncrypted: v.string(), // Always encrypted
+      merchantId: v.optional(v.string()), // Some providers use merchant IDs
+      apiUrl: v.optional(v.string()), // Custom API endpoint if needed
+    }),
+
+    // Configuration
+    environment: v.union(v.literal("test"), v.literal("live")),
+    isPrimary: v.boolean(), // Is this the primary provider for the app?
+    isActive: v.boolean(), // Can be temporarily disabled
+
+    // Webhook configuration
+    webhookSecret: v.optional(v.string()), // For verifying provider webhooks
+
+    // Supported payment methods for this provider
+    supportedMethods: v.array(
+      v.union(
+        v.literal("mobile_money_mtn"),
+        v.literal("mobile_money_airtel"),
+        v.literal("mobile_money_tigo"),
+        v.literal("mobile_money_vodacom"),
+        v.literal("card_visa"),
+        v.literal("card_mastercard"),
+        v.literal("bank_transfer")
+      )
+    ),
+
+    // Connection status
+    connectionStatus: v.union(
+      v.literal("connected"),
+      v.literal("error"),
+      v.literal("pending")
+    ),
+    lastConnectionTest: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+
+    // Metadata
+    addedBy: v.id("users"),
+  })
+    .index("by_app", ["appId"])
+    .index("by_org", ["organizationId"])
+    .index("by_app_primary", ["appId", "isPrimary"])
+    .index("by_provider", ["provider"])
+    .index("by_status", ["isActive"]),
+
+  // Payment Transactions Table
+  // Tracks every payment attempt (success or failure)
+  paymentTransactions: defineTable({
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+    customerId: v.id("customers"),
+    subscriptionId: v.optional(v.id("subscriptions")),
+    invoiceId: v.optional(v.id("invoices")),
+
+    // Payment details
+    amount: v.number(), // Smallest currency unit
+    currency: v.string(),
+
+    // Provider used for THIS transaction attempt
+    paymentProviderId: v.id("paymentProviders"),
+    providerTransactionId: v.optional(v.string()), // Provider's reference
+    providerReference: v.optional(v.string()), // Our reference sent to provider
+
+    // Payment method used
+    paymentMethod: v.union(
+      v.literal("mobile_money_mtn"),
+      v.literal("mobile_money_airtel"),
+      v.literal("mobile_money_tigo"),
+      v.literal("mobile_money_vodacom"),
+      v.literal("card_visa"),
+      v.literal("card_mastercard"),
+      v.literal("bank_transfer"),
+      v.literal("other")
+    ),
+
+    // Customer payment details (phone, card token, etc.)
+    customerPaymentDetails: v.optional(
+      v.object({
+        phone: v.optional(v.string()),
+        cardLast4: v.optional(v.string()),
+        accountNumber: v.optional(v.string()),
+      })
+    ),
+
+    // Transaction status
+    status: v.union(
+      v.literal("pending"),
+      v.literal("initiated"),
+      v.literal("processing"),
+      v.literal("success"),
+      v.literal("failed"),
+      v.literal("canceled"),
+      v.literal("refunded")
+    ),
+
+    // Failure details
+    failureReason: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+
+    // Retry tracking
+    attemptNumber: v.number(), // 1st attempt, 2nd attempt, etc.
+    isRetry: v.boolean(),
+    originalTransactionId: v.optional(v.id("paymentTransactions")),
+
+    // Provider response
+    providerResponse: v.optional(v.any()), // Full webhook/API response
+
+    // Timestamps
+    initiatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()), // For pending payments
+
+    // Metadata
+    metadata: v.optional(v.any()),
+  })
+    .index("by_app", ["appId"])
+    .index("by_customer", ["customerId"])
+    .index("by_subscription", ["subscriptionId"])
+    .index("by_invoice", ["invoiceId"])
+    .index("by_provider", ["paymentProviderId"])
+    .index("by_status", ["status"])
+    .index("by_provider_txn_id", ["providerTransactionId"])
+    .index("by_reference", ["providerReference"])
+    .index("by_initiated_at", ["initiatedAt"]),
+
+  // Webhook Logs Table (Incoming webhooks from providers)
+  webhookLogs: defineTable({
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+
+    // Provider info
+    provider: v.union(
+      v.literal("flutterwave"),
+      v.literal("pawapay"),
+      v.literal("pesapal"),
+      v.literal("dpo"),
+      v.literal("paystack"),
+      v.literal("stripe"),
+      v.literal("clerk") // For user webhooks
+    ),
+
+    // Webhook data
+    event: v.string(), // e.g., "charge.completed", "payment.success"
+    payload: v.any(), // Full webhook payload
+    headers: v.optional(v.any()), // Request headers for debugging
+
+    // Verification
+    signatureValid: v.optional(v.boolean()),
+
+    // Processing status
+    status: v.union(
+      v.literal("received"),
+      v.literal("processing"),
+      v.literal("processed"),
+      v.literal("failed"),
+      v.literal("ignored")
+    ),
+
+    // Processing details
+    processedAt: v.optional(v.number()),
+    processingError: v.optional(v.string()),
+
+    // Related entities
+    paymentTransactionId: v.optional(v.id("paymentTransactions")),
+    subscriptionId: v.optional(v.id("subscriptions")),
+
+    // Timestamps
+    receivedAt: v.number(),
+  })
+    .index("by_app", ["appId"])
+    .index("by_provider", ["provider"])
+    .index("by_status", ["status"])
+    .index("by_received_at", ["receivedAt"])
+    .index("by_payment_txn", ["paymentTransactionId"]),
+
+  // Outgoing Webhook Logs (Webhooks sent TO SaaS apps)
+  outgoingWebhookLogs: defineTable({
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+    webhookId: v.id("webhooks"), // Reference to webhook configuration
+
+    // Event details
+    event: v.string(), // e.g., "subscription.activated", "invoice.paid"
+    payload: v.any(), // Payload sent to SaaS app
+
+    // Delivery details
+    url: v.string(), // Where we sent it
+    httpStatus: v.optional(v.number()), // Response status code
+    response: v.optional(v.any()), // Response body
+
+    // Status
+    status: v.union(
+      v.literal("pending"),
+      v.literal("sent"),
+      v.literal("delivered"),
+      v.literal("failed"),
+      v.literal("retrying")
+    ),
+
+    // Retry tracking
+    attemptNumber: v.number(),
+    maxAttempts: v.number(),
+    nextRetryAt: v.optional(v.number()),
+
+    // Error details
+    error: v.optional(v.string()),
+
+    // Timestamps
+    createdAt: v.number(),
+    sentAt: v.optional(v.number()),
+    deliveredAt: v.optional(v.number()),
+  })
+    .index("by_app", ["appId"])
+    .index("by_webhook", ["webhookId"])
+    .index("by_status", ["status"])
+    .index("by_event", ["event"])
+    .index("by_next_retry", ["nextRetryAt"]),
 });

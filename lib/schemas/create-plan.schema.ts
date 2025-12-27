@@ -31,6 +31,13 @@ export const createPlanSchema = z.object({
     message: "Please select a valid billing interval",
   }),
 
+  trialDays: z
+    .number()
+    .int("Trial days must be a whole number")
+    .min(0, "Trial days cannot be negative")
+    .max(365, "Trial days cannot exceed 365")
+    .optional(),
+
   usageMetric: z
     .string()
     .max(100, "Usage metric must be less than 100 characters")

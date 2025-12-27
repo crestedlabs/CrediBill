@@ -1,9 +1,19 @@
 "use client";
 
 import * as React from "react";
-import { BellRing, DollarSign, CreditCard, TrendingUp, CheckCircle2 } from "lucide-react";
+import {
+  BellRing,
+  DollarSign,
+  CreditCard,
+  TrendingUp,
+  CheckCircle2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 
@@ -80,28 +90,24 @@ function getNotificationIcon(type: NotificationType) {
 }
 
 function formatAmount(amount: number) {
-  if (amount >= 1000000) {
-    return `${(amount / 1000000).toFixed(1)}M`;
-  } else if (amount >= 1000) {
-    return `${(amount / 1000).toFixed(0)}K`;
-  }
-  return amount.toString();
+  return amount.toLocaleString();
 }
 
 export function NotificationCenter() {
-  const [notifications, setNotifications] = React.useState<Notification[]>(mockNotifications);
+  const [notifications, setNotifications] =
+    React.useState<Notification[]>(mockNotifications);
   const [isOpen, setIsOpen] = React.useState(false);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   const markAsRead = (id: string) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
   };
 
   const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
   return (
@@ -114,8 +120,8 @@ export function NotificationCenter() {
         >
           <BellRing className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge 
-              variant="destructive" 
+            <Badge
+              variant="destructive"
               className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center min-w-[20px]"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -123,7 +129,7 @@ export function NotificationCenter() {
           )}
         </Button>
       </PopoverTrigger>
-      
+
       <PopoverContent className="w-80 p-0" sideOffset={8}>
         <div className="border-b border-slate-200 px-4 py-3">
           <div className="flex items-center justify-between">
@@ -161,7 +167,7 @@ export function NotificationCenter() {
                     <div className="p-1.5 bg-white rounded-lg border border-slate-200 shadow-sm">
                       {getNotificationIcon(notification.type)}
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-sm font-medium text-slate-900 truncate">
@@ -171,11 +177,11 @@ export function NotificationCenter() {
                           <div className="h-2 w-2 bg-blue-600 rounded-full flex-shrink-0" />
                         )}
                       </div>
-                      
+
                       <p className="text-sm text-slate-600 mb-1">
                         {notification.message}
                       </p>
-                      
+
                       <div className="flex items-center justify-between">
                         {notification.amount && (
                           <div className="flex items-center gap-1">
@@ -187,9 +193,11 @@ export function NotificationCenter() {
                             </span>
                           </div>
                         )}
-                        
+
                         <span className="text-xs text-slate-500">
-                          {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                          {formatDistanceToNow(notification.timestamp, {
+                            addSuffix: true,
+                          })}
                         </span>
                       </div>
                     </div>

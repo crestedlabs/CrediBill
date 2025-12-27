@@ -1,264 +1,632 @@
-import { mutation, query } from "./_generated/server";
+/**
+ * Payment Orchestration
+ * Core functions for initiating and managing payments
+ */
+
 import { v } from "convex/values";
+import {
+  action,
+  internalAction,
+  mutation,
+  query,
+  internalMutation,
+  internalQuery,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
 import { getCurrentUser } from "./users";
+import { Id } from "./_generated/dataModel";
 
-// Record a payment against an invoice
-export const recordPayment = mutation({
+/**
+ * Initiate a payment for a subscription
+ * This is the main entry point for charging customers
+ */
+export const initiateSubscriptionPayment = action({
   args: {
-    invoiceId: v.id("invoices"),
-    amount: v.number(),
+    subscriptionId: v.id("subscriptions"),
+    invoiceId: v.optional(v.id("invoices")),
     paymentMethod: v.union(
-      v.literal("momo"),
-      v.literal("credit-card"),
-      v.literal("bank"),
-      v.literal("cash"),
-      v.literal("other")
+      v.literal("mobile_money_mtn"),
+      v.literal("mobile_money_airtel"),
+      v.literal("mobile_money_tigo"),
+      v.literal("mobile_money_vodacom"),
+      v.literal("card_visa"),
+      v.literal("card_mastercard"),
+      v.literal("bank_transfer")
     ),
-    paymentDate: v.optional(v.number()), // If not provided, use current time
-    reference: v.optional(v.string()), // Transaction reference or note
-    notes: v.optional(v.string()),
+    customerPhone: v.optional(v.string()), // Required for mobile money
+    amount: v.optional(v.number()), // Override invoice amount if needed
   },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Unauthorized");
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    success: boolean;
+    transactionId?: Id<"paymentTransactions">;
+    paymentUrl?: string;
+    message: string;
+  }> => {
+    // Get subscription details
+    const subscription = await ctx.runQuery(
+      internal.payments.getSubscriptionDetails,
+      {
+        subscriptionId: args.subscriptionId,
+      }
+    );
 
-    // Get the invoice
-    const invoice = await ctx.db.get(args.invoiceId);
-    if (!invoice) throw new Error("Invoice not found");
-
-    // Verify user has access to this app's organization
-    const membership = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", invoice.organizationId).eq("userId", user._id)
-      )
-      .unique();
-
-    if (!membership) throw new Error("Access denied to organization");
-
-    // Validate amount
-    if (args.amount <= 0) {
-      throw new Error("Payment amount must be greater than zero");
+    if (!subscription) {
+      return { success: false, message: "Subscription not found" };
     }
 
-    // Validate invoice is not void
-    if (invoice.status === "void") {
-      throw new Error("Cannot record payment for void invoice");
+    // Get plan for currency
+    const plan = await ctx.runQuery(internal.payments.getPlanDetails, {
+      planId: subscription.planId,
+    });
+
+    if (!plan) {
+      return { success: false, message: "Plan not found" };
     }
 
-    // Calculate new amount paid
-    const currentAmountPaid = invoice.amountPaid || 0;
-    const newAmountPaid = currentAmountPaid + args.amount;
-
-    // Check for overpayment
-    if (newAmountPaid > invoice.amountDue) {
-      throw new Error(
-        `Payment amount (${args.amount}) would result in overpayment. Invoice due: ${invoice.amountDue}, already paid: ${currentAmountPaid}`
+    // Get or create invoice
+    let invoiceId = args.invoiceId;
+    if (!invoiceId) {
+      invoiceId = await ctx.runMutation(
+        internal.payments.createInvoiceForSubscription,
+        {
+          subscriptionId: args.subscriptionId,
+        }
       );
     }
 
-    // Create payment record
-    const paymentId = await ctx.db.insert("payments", {
-      organizationId: invoice.organizationId,
-      appId: invoice.appId,
-      customerId: invoice.customerId,
+    const invoice = await ctx.runQuery(internal.payments.getInvoiceDetails, {
+      invoiceId,
+    });
+
+    if (!invoice) {
+      return { success: false, message: "Invoice not found" };
+    }
+
+    // Get app's primary payment provider
+    const provider = await ctx.runQuery(internal.payments.getPrimaryProvider, {
+      appId: subscription.appId,
+    });
+
+    if (!provider) {
+      return {
+        success: false,
+        message: "No payment provider configured for this app",
+      };
+    }
+
+    // Create payment transaction record
+    const transactionId = await ctx.runMutation(
+      internal.payments.createPaymentTransaction,
+      {
+        organizationId: subscription.organizationId,
+        appId: subscription.appId,
+        customerId: subscription.customerId,
+        subscriptionId: args.subscriptionId,
+        invoiceId,
+        amount: args.amount || invoice.amountDue,
+        currency: plan.currency,
+        paymentProviderId: provider._id,
+        paymentMethod: args.paymentMethod,
+        customerPhone: args.customerPhone,
+        attemptNumber: 1,
+        isRetry: false,
+      }
+    );
+
+    // Initiate payment with provider (using internal action for Node.js runtime)
+    const result = await ctx.runAction(
+      internal.paymentsNode.initiatePaymentWithProvider,
+      {
+        transactionId,
+        providerId: provider._id,
+        customerId: subscription.customerId,
+        subscriptionId: args.subscriptionId,
+        invoiceId,
+        amount: args.amount || invoice.amountDue,
+        currency: plan.currency,
+        paymentMethod: args.paymentMethod,
+        customerPhone: args.customerPhone,
+        reference: `txn_${transactionId}`,
+      }
+    );
+
+    return {
+      success: result.success,
+      transactionId,
+      paymentUrl: result.paymentUrl,
+      message: result.message,
+    };
+  },
+});
+
+/**
+ * Process trial expiration - convert trial to paid subscription
+ */
+export const processTrialExpiration = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ success: boolean; message: string }> => {
+    // Get subscription
+    const subscription = await ctx.runQuery(
+      internal.payments.getSubscriptionDetails,
+      {
+        subscriptionId: args.subscriptionId,
+      }
+    );
+
+    if (!subscription) {
+      return { success: false, message: "Subscription not found" };
+    }
+
+    // Verify it's actually in trial and trial has ended
+    if (subscription.status !== "trialing") {
+      return { success: false, message: "Subscription is not in trial" };
+    }
+
+    const now = Date.now();
+    if (!subscription.trialEndsAt || subscription.trialEndsAt > now) {
+      return { success: false, message: "Trial has not ended yet" };
+    }
+
+    // Get customer's default payment method
+    const customer = await ctx.runQuery(internal.payments.getCustomerDetails, {
+      customerId: subscription.customerId,
+    });
+
+    if (!customer) {
+      return { success: false, message: "Customer not found" };
+    }
+
+    // Attempt to charge for first billing period
+    // For now, we'll require the app to provide payment method
+    // In the future, we can store customer payment methods
+
+    return {
+      success: false,
+      message: "Trial expired. Customer needs to provide payment details.",
+    };
+  },
+});
+
+/**
+ * Process recurring payment for active subscription
+ */
+export const processRecurringPayment = action({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ success: boolean; message: string }> => {
+    // Get subscription
+    const subscription = await ctx.runQuery(
+      internal.payments.getSubscriptionDetails,
+      {
+        subscriptionId: args.subscriptionId,
+      }
+    );
+
+    if (!subscription) {
+      return { success: false, message: "Subscription not found" };
+    }
+
+    // Verify subscription is active
+    if (subscription.status !== "active") {
+      return { success: false, message: "Subscription is not active" };
+    }
+
+    // Check if payment is due
+    const now = Date.now();
+    if (!subscription.nextPaymentDate || subscription.nextPaymentDate > now) {
+      return { success: false, message: "Payment is not due yet" };
+    }
+
+    // Create invoice for this billing period
+    const invoiceId = await ctx.runMutation(
+      internal.payments.createInvoiceForSubscription,
+      {
+        subscriptionId: args.subscriptionId,
+      }
+    );
+
+    // Get customer's stored payment method (if available)
+    // For now, return message that payment is needed
+
+    return {
+      success: false,
+      message: "Recurring payment due. Waiting for customer payment.",
+    };
+  },
+});
+
+/**
+ * Retry a failed payment
+ */
+export const retryFailedPayment = action({
+  args: {
+    transactionId: v.id("paymentTransactions"),
+    paymentMethod: v.optional(
+      v.union(
+        v.literal("mobile_money_mtn"),
+        v.literal("mobile_money_airtel"),
+        v.literal("mobile_money_tigo"),
+        v.literal("mobile_money_vodacom"),
+        v.literal("card_visa"),
+        v.literal("card_mastercard"),
+        v.literal("bank_transfer")
+      )
+    ),
+    customerPhone: v.optional(v.string()),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    success: boolean;
+    newTransactionId?: Id<"paymentTransactions">;
+    paymentUrl?: string;
+    message: string;
+  }> => {
+    // Get original transaction
+    const originalTxn = await ctx.runQuery(
+      internal.payments.getTransactionDetails,
+      {
+        transactionId: args.transactionId,
+      }
+    );
+
+    if (!originalTxn) {
+      return { success: false, message: "Transaction not found" };
+    }
+
+    // Check if already succeeded
+    if (originalTxn.status === "success") {
+      return { success: false, message: "Transaction already succeeded" };
+    }
+
+    // Count retry attempts
+    const attemptNumber = originalTxn.attemptNumber + 1;
+
+    // Get provider
+    const provider = await ctx.runQuery(internal.payments.getProviderDetails, {
+      providerId: originalTxn.paymentProviderId,
+    });
+
+    if (!provider) {
+      return { success: false, message: "Payment provider not found" };
+    }
+
+    // Create new transaction for retry
+    const newTransactionId = await ctx.runMutation(
+      internal.payments.createPaymentTransaction,
+      {
+        organizationId: originalTxn.organizationId,
+        appId: originalTxn.appId,
+        customerId: originalTxn.customerId,
+        subscriptionId: originalTxn.subscriptionId,
+        invoiceId: originalTxn.invoiceId,
+        amount: originalTxn.amount,
+        currency: originalTxn.currency,
+        paymentProviderId: originalTxn.paymentProviderId,
+        paymentMethod: (args.paymentMethod || originalTxn.paymentMethod) as any,
+        customerPhone:
+          args.customerPhone || originalTxn.customerPaymentDetails?.phone,
+        attemptNumber,
+        isRetry: true,
+        originalTransactionId: args.transactionId,
+      }
+    );
+
+    // Initiate payment with provider
+    const result = await ctx.runAction(
+      internal.paymentsNode.initiatePaymentWithProvider,
+      {
+        transactionId: newTransactionId,
+        providerId: provider._id,
+        customerId: originalTxn.customerId,
+        subscriptionId: originalTxn.subscriptionId,
+        invoiceId: originalTxn.invoiceId,
+        amount: originalTxn.amount,
+        currency: originalTxn.currency,
+        paymentMethod: (args.paymentMethod || originalTxn.paymentMethod) as any,
+        customerPhone:
+          args.customerPhone || originalTxn.customerPaymentDetails?.phone,
+        reference: `txn_${newTransactionId}_retry${attemptNumber}`,
+      }
+    );
+
+    return {
+      success: result.success,
+      newTransactionId,
+      paymentUrl: result.paymentUrl,
+      message: result.message,
+    };
+  },
+});
+
+// ============= Internal Queries =============
+
+/**
+ * Get subscription details (internal)
+ */
+export const getSubscriptionDetails = internalQuery({
+  args: { subscriptionId: v.id("subscriptions") },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db.get(args.subscriptionId);
+    return subscription;
+  },
+});
+
+/**
+ * Get plan details (internal)
+ */
+export const getPlanDetails = internalQuery({
+  args: { planId: v.id("plans") },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    return plan;
+  },
+});
+
+/**
+ * Get invoice details (internal)
+ */
+export const getInvoiceDetails = internalQuery({
+  args: { invoiceId: v.id("invoices") },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    return invoice;
+  },
+});
+
+/**
+ * Get customer details (internal)
+ */
+export const getCustomerDetails = internalQuery({
+  args: { customerId: v.id("customers") },
+  handler: async (ctx, args) => {
+    const customer = await ctx.db.get(args.customerId);
+    return customer;
+  },
+});
+
+/**
+ * Get primary payment provider for app (internal)
+ */
+export const getPrimaryProvider = internalQuery({
+  args: { appId: v.id("apps") },
+  handler: async (ctx, args) => {
+    const provider = await ctx.db
+      .query("paymentProviders")
+      .withIndex("by_app", (q) => q.eq("appId", args.appId))
+      .filter((q) => q.eq(q.field("isPrimary"), true))
+      .first();
+    return provider;
+  },
+});
+
+/**
+ * Get provider details (internal)
+ */
+export const getProviderDetails = internalQuery({
+  args: { providerId: v.id("paymentProviders") },
+  handler: async (ctx, args) => {
+    const provider = await ctx.db.get(args.providerId);
+    return provider;
+  },
+});
+
+/**
+ * Get transaction details (internal)
+ */
+export const getTransactionDetails = internalQuery({
+  args: { transactionId: v.id("paymentTransactions") },
+  handler: async (ctx, args) => {
+    const transaction = await ctx.db.get(args.transactionId);
+    return transaction;
+  },
+});
+
+// ============= Internal Mutations =============
+
+/**
+ * Create invoice for subscription (internal)
+ */
+export const createInvoiceForSubscription = internalMutation({
+  args: { subscriptionId: v.id("subscriptions") },
+  handler: async (ctx, args) => {
+    const subscription = await ctx.db.get(args.subscriptionId);
+    if (!subscription) throw new Error("Subscription not found");
+
+    const plan = await ctx.db.get(subscription.planId);
+    if (!plan) throw new Error("Plan not found");
+
+    // Calculate invoice amount (base plan + usage)
+    const now = Date.now();
+    const periodStart =
+      subscription.nextPaymentDate || subscription.currentPeriodStart || now;
+    const periodEnd = periodStart + 30 * 24 * 60 * 60 * 1000; // 30 days
+
+    // For now, just charge the plan amount
+    // TODO: Add usage calculation
+    const amountDue = plan.baseAmount || 0;
+
+    // Generate invoice number
+    const invoiceCount = (
+      await ctx.db
+        .query("invoices")
+        .withIndex("by_app", (q) => q.eq("appId", subscription.appId))
+        .collect()
+    ).length;
+    const invoiceNumber = `INV-${Date.now()}-${invoiceCount + 1}`;
+
+    const invoiceId = await ctx.db.insert("invoices", {
+      organizationId: subscription.organizationId,
+      appId: subscription.appId,
+      customerId: subscription.customerId,
+      subscriptionId: args.subscriptionId,
+      invoiceNumber,
+      currency: plan.currency,
+      amountDue,
+      amountPaid: 0,
+      status: "open",
+      periodStart,
+      periodEnd,
+      lineItems: [
+        {
+          description: plan.name,
+          quantity: 1,
+          unitAmount: plan.baseAmount || 0,
+          totalAmount: plan.baseAmount || 0,
+          type: "plan",
+        },
+      ],
+    });
+
+    return invoiceId;
+  },
+});
+
+/**
+ * Create payment transaction record (internal)
+ */
+export const createPaymentTransaction = internalMutation({
+  args: {
+    organizationId: v.id("organizations"),
+    appId: v.id("apps"),
+    customerId: v.id("customers"),
+    subscriptionId: v.optional(v.id("subscriptions")),
+    invoiceId: v.optional(v.id("invoices")),
+    amount: v.number(),
+    currency: v.string(),
+    paymentProviderId: v.id("paymentProviders"),
+    paymentMethod: v.union(
+      v.literal("mobile_money_mtn"),
+      v.literal("mobile_money_airtel"),
+      v.literal("mobile_money_tigo"),
+      v.literal("mobile_money_vodacom"),
+      v.literal("card_visa"),
+      v.literal("card_mastercard"),
+      v.literal("bank_transfer")
+    ),
+    customerPhone: v.optional(v.string()),
+    attemptNumber: v.number(),
+    isRetry: v.boolean(),
+    originalTransactionId: v.optional(v.id("paymentTransactions")),
+  },
+  handler: async (ctx, args) => {
+    const transactionId = await ctx.db.insert("paymentTransactions", {
+      organizationId: args.organizationId,
+      appId: args.appId,
+      customerId: args.customerId,
+      subscriptionId: args.subscriptionId,
       invoiceId: args.invoiceId,
       amount: args.amount,
-      currency: invoice.currency,
-      status: "completed",
+      currency: args.currency,
+      paymentProviderId: args.paymentProviderId,
       paymentMethod: args.paymentMethod,
-      provider: "manual",
-      providerPaymentId: args.reference,
-      paidAt: args.paymentDate || Date.now(),
-      notes: args.notes,
-      recordedBy: user._id,
+      customerPaymentDetails: args.customerPhone
+        ? { phone: args.customerPhone }
+        : undefined,
+      status: "pending",
+      attemptNumber: args.attemptNumber,
+      isRetry: args.isRetry,
+      originalTransactionId: args.originalTransactionId,
+      initiatedAt: Date.now(),
     });
 
-    // Update invoice
-    const newStatus = newAmountPaid >= invoice.amountDue ? "paid" : "open";
-    await ctx.db.patch(args.invoiceId, {
-      amountPaid: newAmountPaid,
-      status: newStatus,
-    });
-
-    return {
-      paymentId,
-      newAmountPaid,
-      remainingBalance: invoice.amountDue - newAmountPaid,
-      invoiceStatus: newStatus,
-    };
+    return transactionId;
   },
 });
 
-// List payments for an invoice
+/**
+ * Update transaction status (internal)
+ */
+export const updateTransactionStatus = internalMutation({
+  args: {
+    transactionId: v.id("paymentTransactions"),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("initiated"),
+      v.literal("processing"),
+      v.literal("success"),
+      v.literal("failed"),
+      v.literal("canceled"),
+      v.literal("refunded")
+    ),
+    providerTransactionId: v.optional(v.string()),
+    providerReference: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
+    failureCode: v.optional(v.string()),
+    providerResponse: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const updates: any = {
+      status: args.status,
+    };
+
+    if (args.providerTransactionId)
+      updates.providerTransactionId = args.providerTransactionId;
+    if (args.providerReference)
+      updates.providerReference = args.providerReference;
+    if (args.failureReason) updates.failureReason = args.failureReason;
+    if (args.failureCode) updates.failureCode = args.failureCode;
+    if (args.providerResponse) updates.providerResponse = args.providerResponse;
+
+    if (
+      args.status === "success" ||
+      args.status === "failed" ||
+      args.status === "canceled"
+    ) {
+      updates.completedAt = Date.now();
+    }
+
+    await ctx.db.patch(args.transactionId, updates);
+  },
+});
+
+// ====================================
+// PUBLIC QUERIES AND MUTATIONS
+// ====================================
+
+/**
+ * List payment transactions by invoice
+ */
 export const listPaymentsByInvoice = query({
-  args: {
-    invoiceId: v.id("invoices"),
-  },
+  args: { invoiceId: v.id("invoices") },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Unauthorized");
-
-    // Get the invoice to verify access
-    const invoice = await ctx.db.get(args.invoiceId);
-    if (!invoice) throw new Error("Invoice not found");
-
-    // Verify user has access to this app's organization
-    const membership = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", invoice.organizationId).eq("userId", user._id)
-      )
-      .unique();
-
-    if (!membership) throw new Error("Access denied to organization");
-
-    // Get all payments for this invoice
-    const payments = await ctx.db
-      .query("payments")
+    const transactions = await ctx.db
+      .query("paymentTransactions")
       .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .order("desc")
       .collect();
 
-    // Enrich with user info for manual payments
-    const enrichedPayments = await Promise.all(
-      payments.map(async (payment) => {
-        let recordedByUser = null;
-        if (payment.recordedBy) {
-          const user = await ctx.db.get(payment.recordedBy);
-          recordedByUser = user
-            ? { name: user.name, email: user.email }
-            : null;
-        }
-
-        return {
-          ...payment,
-          recordedByUser,
-        };
-      })
-    );
-
-    return enrichedPayments;
+    return transactions;
   },
 });
 
-// List payments for a customer
-export const listPaymentsByCustomer = query({
-  args: {
-    customerId: v.id("customers"),
-    appId: v.id("apps"),
-  },
+/**
+ * List payment transactions by subscription
+ */
+export const listPaymentsBySubscription = query({
+  args: { subscriptionId: v.id("subscriptions") },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Unauthorized");
-
-    // Get the app
-    const app = await ctx.db.get(args.appId);
-    if (!app) throw new Error("App not found");
-
-    // Verify user has access to this app's organization
-    const membership = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+    const transactions = await ctx.db
+      .query("paymentTransactions")
+      .withIndex("by_subscription", (q) =>
+        q.eq("subscriptionId", args.subscriptionId)
       )
-      .unique();
-
-    if (!membership) throw new Error("Access denied to organization");
-
-    // Get all payments for this customer in this app
-    const payments = await ctx.db
-      .query("payments")
-      .withIndex("by_customer", (q) => q.eq("customerId", args.customerId))
-      .filter((q) => q.eq(q.field("appId"), args.appId))
+      .order("desc")
       .collect();
 
-    // Enrich with invoice info
-    const enrichedPayments = await Promise.all(
-      payments.map(async (payment) => {
-        const invoice = await ctx.db.get(payment.invoiceId);
-        return {
-          ...payment,
-          invoice: invoice
-            ? {
-                invoiceNumber: invoice.invoiceNumber,
-                amountDue: invoice.amountDue,
-                status: invoice.status,
-              }
-            : null,
-        };
-      })
-    );
-
-    return enrichedPayments;
-  },
-});
-
-// Refund a payment
-export const refundPayment = mutation({
-  args: {
-    paymentId: v.id("payments"),
-    refundAmount: v.optional(v.number()), // If not provided, full refund
-    reason: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) throw new Error("Unauthorized");
-
-    // Get the payment
-    const payment = await ctx.db.get(args.paymentId);
-    if (!payment) throw new Error("Payment not found");
-
-    // Verify user has access to this app's organization
-    const membership = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", payment.organizationId).eq("userId", user._id)
-      )
-      .unique();
-
-    if (!membership) throw new Error("Access denied to organization");
-
-    // Validate payment can be refunded
-    if (payment.status === "refunded") {
-      throw new Error("Payment already refunded");
-    }
-
-    if (payment.status !== "completed") {
-      throw new Error("Only completed payments can be refunded");
-    }
-
-    // Determine refund amount
-    const refundAmount = args.refundAmount || payment.amount;
-    if (refundAmount > payment.amount) {
-      throw new Error("Refund amount cannot exceed payment amount");
-    }
-
-    // Get the invoice
-    const invoice = await ctx.db.get(payment.invoiceId);
-    if (!invoice) throw new Error("Invoice not found");
-
-    // Update payment status
-    await ctx.db.patch(args.paymentId, {
-      status: "refunded",
-      notes: payment.notes
-        ? `${payment.notes}\n[REFUNDED: ${args.reason || "No reason provided"}]`
-        : `[REFUNDED: ${args.reason || "No reason provided"}]`,
-    });
-
-    // Update invoice amount paid and status
-    const newAmountPaid = (invoice.amountPaid || 0) - refundAmount;
-    const newStatus = newAmountPaid >= invoice.amountDue ? "paid" : "open";
-
-    await ctx.db.patch(payment.invoiceId, {
-      amountPaid: Math.max(0, newAmountPaid),
-      status: newStatus,
-    });
-
-    return {
-      refundAmount,
-      newAmountPaid: Math.max(0, newAmountPaid),
-      remainingBalance: invoice.amountDue - Math.max(0, newAmountPaid),
-      invoiceStatus: newStatus,
-    };
+    return transactions;
   },
 });

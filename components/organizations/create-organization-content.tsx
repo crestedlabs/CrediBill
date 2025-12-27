@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 import Link from "next/link";
 
 export default function CreateOrganizationContent() {
@@ -81,8 +82,9 @@ function CreateOrganizationForm() {
       // Redirect to organization details page
       router.push("/organization-details");
     } catch (error: any) {
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to create organization", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsSubmitting(false);

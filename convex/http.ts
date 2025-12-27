@@ -380,4 +380,108 @@ async function validateRequest(req: Request): Promise<WebhookEvent | null> {
   }
 }
 
+// ==========================================
+// PAYMENT PROVIDER WEBHOOKS
+// ==========================================
+
+/**
+ * Flutterwave webhook endpoint
+ * Signature: verif-hash header with SHA256 HMAC
+ */
+http.route({
+  path: "/webhooks/flutterwave",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const payload = await request.text();
+    const signature = request.headers.get("verif-hash") || "";
+
+    const result = await ctx.runAction(
+      internal.webhookActions.handleFlutterwaveWebhook,
+      {
+        payload,
+        signature,
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: result.success ? 200 : 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+/**
+ * PawaPay webhook endpoint
+ * Signature: X-Signature header with HMAC-SHA256
+ */
+http.route({
+  path: "/webhooks/pawapay",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const payload = await request.text();
+    const signature = request.headers.get("x-signature") || "";
+
+    const result = await ctx.runAction(
+      internal.webhookActions.handlePawapayWebhook,
+      {
+        payload,
+        signature,
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: result.success ? 200 : 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+/**
+ * Pesapal webhook endpoint (IPN)
+ * Uses OrderTrackingId and OrderMerchantReference for verification
+ */
+http.route({
+  path: "/webhooks/pesapal",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const payload = await request.text();
+
+    const result = await ctx.runAction(
+      internal.webhookActions.handlePesapalWebhook,
+      {
+        payload,
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: result.success ? 200 : 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+/**
+ * DPO webhook endpoint
+ * Uses CompanyToken for verification
+ */
+http.route({
+  path: "/webhooks/dpo",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const payload = await request.text();
+
+    const result = await ctx.runAction(
+      internal.webhookActions.handleDpoWebhook,
+      {
+        payload,
+      }
+    );
+
+    return new Response(JSON.stringify(result), {
+      status: result.success ? 200 : 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
 export default http;

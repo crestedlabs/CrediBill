@@ -29,6 +29,7 @@ import {
   FormNumberField,
 } from "@/components/form/form-fields";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 import { Loader2, Zap, TrendingUp, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Id } from "@/convex/_generated/dataModel";
@@ -56,15 +57,22 @@ export function EditPlanDialog({
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Plan</DialogTitle>
-            <DialogDescription>
-              Update your pricing plan. Changes may affect existing
-              subscriptions.
-            </DialogDescription>
-          </DialogHeader>
-          <EditPlanForm plan={plan} onSuccess={handleSuccess} />
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col p-0">
+          {/* Fixed Header */}
+          <div className="border-b border-slate-200 p-6 pb-4">
+            <DialogHeader className="space-y-1">
+              <DialogTitle>Edit Plan</DialogTitle>
+              <DialogDescription>
+                Update your pricing plan. Changes may affect existing
+                subscriptions.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="overflow-y-auto flex-1 px-6 py-4">
+            <EditPlanForm plan={plan} onSuccess={handleSuccess} />
+          </div>
         </DialogContent>
       </Dialog>
     );
@@ -72,8 +80,9 @@ export function EditPlanDialog({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh]">
-        <div className="overflow-y-auto">
+      <DrawerContent className="max-h-[96vh] flex flex-col">
+        {/* Fixed Header */}
+        <div className="border-b border-slate-200">
           <DrawerHeader className="text-left">
             <DrawerTitle>Edit Plan</DrawerTitle>
             <DrawerDescription>
@@ -81,12 +90,16 @@ export function EditPlanDialog({
               subscriptions.
             </DrawerDescription>
           </DrawerHeader>
-          <EditPlanForm
-            plan={plan}
-            onSuccess={handleSuccess}
-            className="px-4"
-          />
-          <DrawerFooter className="pt-2">
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto flex-1 px-4 py-4">
+          <EditPlanForm plan={plan} onSuccess={handleSuccess} className="" />
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="border-t border-slate-200">
+          <DrawerFooter className="pt-4">
             <DrawerClose asChild>
               <Button variant="outline">Cancel</Button>
             </DrawerClose>
@@ -116,6 +129,7 @@ function EditPlanForm({ plan, onSuccess, className }: EditPlanFormProps) {
       | "quarterly"
       | "yearly"
       | "one-time",
+    trialDays: plan?.trialDays || 0,
     usageMetric: plan?.usageMetric || "",
     unitPrice: plan?.unitPrice as number | undefined,
     freeUnits: plan?.freeUnits as number | undefined,
@@ -135,6 +149,7 @@ function EditPlanForm({ plan, onSuccess, className }: EditPlanFormProps) {
         baseAmount: plan.baseAmount,
         currency: plan.currency,
         interval: plan.interval,
+        trialDays: plan.trialDays || 0,
         usageMetric: plan.usageMetric || "",
         unitPrice: plan.unitPrice,
         freeUnits: plan.freeUnits,
@@ -192,8 +207,9 @@ function EditPlanForm({ plan, onSuccess, className }: EditPlanFormProps) {
         description: formData.description,
         pricingModel: formData.pricingModel,
         baseAmount: formData.baseAmount,
-        currency: formData.currency,
+        // currency is intentionally omitted - it cannot be changed
         interval: formData.interval,
+        trialDays: formData.trialDays,
         usageMetric: formData.usageMetric,
         unitPrice: formData.unitPrice,
         freeUnits: formData.freeUnits,
@@ -220,15 +236,32 @@ function EditPlanForm({ plan, onSuccess, className }: EditPlanFormProps) {
     } catch (error: any) {
       console.error("Update error:", error);
       toast.dismiss("update-plan");
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to update plan", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const canSubmit = formData.name.length >= 3 && !isSubmitting;
+  // Check if any changes were made
+  const hasChanges =
+    plan &&
+    (formData.name !== plan.name ||
+      formData.description !== (plan.description || "") ||
+      formData.pricingModel !== plan.pricingModel ||
+      formData.baseAmount !== plan.baseAmount ||
+      formData.currency !== plan.currency ||
+      formData.interval !== plan.interval ||
+      (formData.trialDays || 0) !== (plan.trialDays || 0) ||
+      formData.usageMetric !== (plan.usageMetric || "") ||
+      formData.unitPrice !== plan.unitPrice ||
+      formData.freeUnits !== plan.freeUnits ||
+      formData.status !== plan.status ||
+      formData.mode !== plan.mode);
+
+  const canSubmit = formData.name.length >= 3 && !isSubmitting && hasChanges;
 
   const pricingModels = [
     {
@@ -373,12 +406,15 @@ function EditPlanForm({ plan, onSuccess, className }: EditPlanFormProps) {
                 setFormData((prev) => ({ ...prev, currency: value }))
               }
               options={[
-                { value: "USD", label: "USD ($)" },
-                { value: "EUR", label: "EUR (€)" },
-                { value: "GBP", label: "GBP (£)" },
+                { value: "UGX", label: "🇺🇬 UGX (Ugandan Shilling)" },
+                { value: "KES", label: "🇰🇪 KES (Kenyan Shilling)" },
+                { value: "TZS", label: "🇹🇿 TZS (Tanzanian Shilling)" },
+                { value: "RWF", label: "🇷🇼 RWF (Rwandan Franc)" },
+                { value: "USD", label: "🇺🇸 USD (US Dollar)" },
               ]}
               required
-              disabled={isSubmitting}
+              disabled={true}
+              helpText="Currency cannot be changed after plan creation"
             />
           </div>
         </div>
@@ -444,6 +480,19 @@ function EditPlanForm({ plan, onSuccess, className }: EditPlanFormProps) {
           { value: "one-time", label: "One-time" },
         ]}
         required
+        disabled={isSubmitting}
+      />
+
+      {/* Trial Period */}
+      <FormNumberField
+        label="Trial Period (days)"
+        value={formData.trialDays || 0}
+        onChange={(value) =>
+          setFormData((prev) => ({ ...prev, trialDays: value }))
+        }
+        min={0}
+        max={365}
+        helpText="Free trial period before billing starts. Set to 0 for no trial."
         disabled={isSubmitting}
       />
 

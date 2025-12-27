@@ -45,14 +45,21 @@ export function CreateCustomerDialog({
   if (isDesktop) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add Customer</DialogTitle>
-            <DialogDescription>
-              Create a new customer for your app. Email is required.
-            </DialogDescription>
-          </DialogHeader>
-          <CreateCustomerForm appId={appId} onSuccess={handleSuccess} />
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] flex flex-col p-0">
+          {/* Fixed Header */}
+          <div className="border-b border-slate-200 p-6 pb-4">
+            <DialogHeader className="space-y-1">
+              <DialogTitle>Add Customer</DialogTitle>
+              <DialogDescription>
+                Create a new customer for your app. Email is required.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="overflow-y-auto flex-1 px-6 py-4">
+            <CreateCustomerForm appId={appId} onSuccess={handleSuccess} />
+          </div>
         </DialogContent>
       </Dialog>
     );
@@ -60,20 +67,29 @@ export function CreateCustomerDialog({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[96vh]">
-        <div className="overflow-y-auto">
+      <DrawerContent className="max-h-[96vh] flex flex-col">
+        {/* Fixed Header */}
+        <div className="border-b border-slate-200">
           <DrawerHeader className="text-left">
             <DrawerTitle>Add Customer</DrawerTitle>
             <DrawerDescription>
               Create a new customer for your app. Email is required.
             </DrawerDescription>
           </DrawerHeader>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="overflow-y-auto flex-1 px-4 py-4">
           <CreateCustomerForm
             appId={appId}
             onSuccess={handleSuccess}
-            className="px-4"
+            className=""
           />
-          <DrawerFooter className="pt-2">
+        </div>
+
+        {/* Fixed Footer */}
+        <div className="border-t border-slate-200">
+          <DrawerFooter className="pt-4">
             <DrawerClose asChild>
               <Button variant="outline">Cancel</Button>
             </DrawerClose>

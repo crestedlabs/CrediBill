@@ -351,16 +351,43 @@ export const deleteApp = mutation({
       await ctx.db.delete(webhook._id);
     }
 
-    // 3. Delete Payments (must be before invoices)
-    const payments = await ctx.db
-      .query("payments")
+    // 3. Delete Payment Providers
+    const paymentProviders = await ctx.db
+      .query("paymentProviders")
       .withIndex("by_app", (q) => q.eq("appId", appId))
       .collect();
-    for (const payment of payments) {
-      await ctx.db.delete(payment._id);
+    for (const provider of paymentProviders) {
+      await ctx.db.delete(provider._id);
     }
 
-    // 4. Delete Invoices (must be before subscriptions)
+    // 4. Delete Payment Transactions
+    const paymentTransactions = await ctx.db
+      .query("paymentTransactions")
+      .withIndex("by_app", (q) => q.eq("appId", appId))
+      .collect();
+    for (const transaction of paymentTransactions) {
+      await ctx.db.delete(transaction._id);
+    }
+
+    // 5. Delete Webhook Logs (incoming)
+    const webhookLogs = await ctx.db
+      .query("webhookLogs")
+      .withIndex("by_app", (q) => q.eq("appId", appId))
+      .collect();
+    for (const log of webhookLogs) {
+      await ctx.db.delete(log._id);
+    }
+
+    // 6. Delete Outgoing Webhook Logs
+    const outgoingWebhookLogs = await ctx.db
+      .query("outgoingWebhookLogs")
+      .withIndex("by_app", (q) => q.eq("appId", appId))
+      .collect();
+    for (const log of outgoingWebhookLogs) {
+      await ctx.db.delete(log._id);
+    }
+
+    // 7. Delete Invoices (must be before subscriptions)
     const invoices = await ctx.db
       .query("invoices")
       .withIndex("by_app", (q) => q.eq("appId", appId))
@@ -369,7 +396,7 @@ export const deleteApp = mutation({
       await ctx.db.delete(invoice._id);
     }
 
-    // 5. Delete Usage Summaries (must be before subscriptions)
+    // 9. Delete Usage Summaries (must be before subscriptions)
     const usageSummaries = await ctx.db
       .query("usageSummaries")
       .filter((q) => q.eq(q.field("appId"), appId))
@@ -423,7 +450,10 @@ export const deleteApp = mutation({
       deletedCounts: {
         apiKeys: apiKeys.length,
         webhooks: webhooks.length,
-        payments: payments.length,
+        paymentProviders: paymentProviders.length,
+        paymentTransactions: paymentTransactions.length,
+        webhookLogs: webhookLogs.length,
+        outgoingWebhookLogs: outgoingWebhookLogs.length,
         invoices: invoices.length,
         usageSummaries: usageSummaries.length,
         usageEvents: usageEvents.length,

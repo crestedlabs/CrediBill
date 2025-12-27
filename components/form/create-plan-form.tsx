@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 import {
   createPlanDefaults,
   type CreatePlanFormData,
@@ -36,6 +37,7 @@ export function CreatePlanForm({
   const [formData, setFormData] = useState<CreatePlanFormData>({
     ...createPlanDefaults,
     appId,
+    trialDays: 0, // Default to no trial
   });
 
   const createPlanMutation = useMutation(api.plans.createPlan);
@@ -90,6 +92,9 @@ export function CreatePlanForm({
         baseAmount: formData.baseAmount,
         currency: formData.currency,
         interval: formData.interval,
+        ...(formData.trialDays !== undefined && {
+          trialDays: formData.trialDays,
+        }),
         usageMetric: formData.usageMetric,
         unitPrice: formData.unitPrice,
         freeUnits: formData.freeUnits,
@@ -103,8 +108,9 @@ export function CreatePlanForm({
 
       onSuccess?.();
     } catch (error: any) {
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to create plan", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsSubmitting(false);
@@ -205,53 +211,66 @@ export function CreatePlanForm({
         </div>
       </div>
 
-      {/* Pricing Details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {(formData.pricingModel === "flat" ||
-          formData.pricingModel === "hybrid") && (
-          <FormNumberField
-            label="Base Amount"
-            value={formData.baseAmount || 0}
-            onChange={(value) =>
-              setFormData((prev) => ({ ...prev, baseAmount: value }))
-            }
-            min={0}
-            helpText="Amount in smallest currency unit (e.g., cents)"
-            required={formData.pricingModel === "flat"}
-          />
-        )}
+      {/* Flat Pricing Fields */}
+      {(formData.pricingModel === "flat" ||
+        formData.pricingModel === "hybrid") && (
+        <div className="space-y-4 p-4 bg-slate-50 rounded-lg border border-slate-200">
+          <h3 className="text-sm font-semibold text-slate-900">Base Pricing</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <FormNumberField
+              label="Base Amount"
+              value={formData.baseAmount || 0}
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, baseAmount: value }))
+              }
+              min={0}
+              required={formData.pricingModel === "flat"}
+            />
+            <FormSelectField
+              label="Currency"
+              value={formData.currency}
+              onChange={(value) =>
+                setFormData((prev) => ({ ...prev, currency: value }))
+              }
+              options={[
+                { value: "UGX", label: "🇺🇬 UGX (Ugandan Shilling)" },
+                { value: "KES", label: "🇰🇪 KES (Kenyan Shilling)" },
+                { value: "TZS", label: "🇹🇿 TZS (Tanzanian Shilling)" },
+                { value: "RWF", label: "🇷🇼 RWF (Rwandan Franc)" },
+                { value: "USD", label: "🇺🇸 USD (US Dollar)" },
+              ]}
+              required
+              helpText="⚠️ Currency cannot be changed after plan creation"
+            />
+          </div>
+        </div>
+      )}
 
-        <FormSelectField
-          label="Currency"
-          value={formData.currency}
-          onChange={(value) =>
-            setFormData((prev) => ({ ...prev, currency: value }))
-          }
-          options={[
-            { value: "UGX", label: "🇺🇬 UGX (Ugandan Shilling)" },
-            { value: "KES", label: "🇰🇪 KES (Kenyan Shilling)" },
-            { value: "TZS", label: "🇹🇿 TZS (Tanzanian Shilling)" },
-            { value: "RWF", label: "🇷🇼 RWF (Rwandan Franc)" },
-            { value: "USD", label: "🇺🇸 USD (US Dollar)" },
-          ]}
-          required
-        />
+      <FormSelectField
+        label="Billing Interval"
+        value={formData.interval}
+        onChange={(value) =>
+          setFormData((prev) => ({ ...prev, interval: value as any }))
+        }
+        options={[
+          { value: "monthly", label: "Monthly" },
+          { value: "quarterly", label: "Quarterly" },
+          { value: "yearly", label: "Yearly" },
+          { value: "one-time", label: "One-Time" },
+        ]}
+        required
+      />
 
-        <FormSelectField
-          label="Billing Interval"
-          value={formData.interval}
-          onChange={(value) =>
-            setFormData((prev) => ({ ...prev, interval: value as any }))
-          }
-          options={[
-            { value: "monthly", label: "Monthly" },
-            { value: "quarterly", label: "Quarterly" },
-            { value: "yearly", label: "Yearly" },
-            { value: "one-time", label: "One-Time" },
-          ]}
-          required
-        />
-      </div>
+      <FormNumberField
+        label="Trial Period (days)"
+        value={formData.trialDays || 0}
+        onChange={(value) =>
+          setFormData((prev) => ({ ...prev, trialDays: value }))
+        }
+        min={0}
+        max={365}
+        helpText="Free trial period before billing starts. Set to 0 for no trial."
+      />
 
       {/* Usage-Based Fields */}
       {(formData.pricingModel === "usage" ||

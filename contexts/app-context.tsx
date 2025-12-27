@@ -18,7 +18,7 @@ type App = {
   language: "en" | "sw" | "fr";
   defaultPaymentMethod: "momo" | "credit-card" | "bank";
   retryPolicy: "automatic" | "manual" | "none";
-  defaultTrialLength: number;
+  defaultTrialLength?: number; // DEPRECATED: Use plan-level trialDays
   gracePeriod: number;
   allowPlanDowngrades?: boolean;
   requireBillingAddress?: boolean;

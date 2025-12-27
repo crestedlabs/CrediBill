@@ -14,6 +14,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
+import { formatCurrencySimple } from "@/lib/currency-utils";
 import { Loader2 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 
@@ -52,9 +54,7 @@ export function SubscribeCustomerForm({
   // Filter to only active plans that match the app's mode
   const activePlans =
     plans?.filter(
-      (p: any) => 
-        p.status === "active" && 
-        (app ? p.mode === app.mode : true) // Match plan mode with app mode
+      (p: any) => p.status === "active" && (app ? p.mode === app.mode : true) // Match plan mode with app mode
     ) || [];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,7 +79,9 @@ export function SubscribeCustomerForm({
         trialDays: trialDays > 0 ? trialDays : undefined,
       });
 
-      const selectedPlan = activePlans.find((p: any) => p._id === formData.planId);
+      const selectedPlan = activePlans.find(
+        (p: any) => p._id === formData.planId
+      );
       toast.success("Subscription created successfully", {
         description: `${customerEmail} subscribed to ${selectedPlan?.name}`,
       });
@@ -94,8 +96,9 @@ export function SubscribeCustomerForm({
       onSuccess?.();
     } catch (error: any) {
       console.error("Error creating subscription:", error);
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to create subscription", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsSubmitting(false);
@@ -152,7 +155,11 @@ export function SubscribeCustomerForm({
                   <div className="flex items-center justify-between w-full">
                     <span className="font-medium">{plan.name}</span>
                     <span className="ml-4 text-xs text-slate-500">
-                      {plan.currency} {plan.baseAmount ? (plan.baseAmount / 100).toLocaleString() : "0"} / {plan.interval}
+                      {formatCurrencySimple(
+                        plan.baseAmount || 0,
+                        plan.currency
+                      )}{" "}
+                      / {plan.interval}
                     </span>
                   </div>
                 </SelectItem>

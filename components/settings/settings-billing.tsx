@@ -40,7 +40,6 @@ export default function SettingsBilling() {
   // Form state
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [retryPolicy, setRetryPolicy] = useState<string>("");
-  const [trialLength, setTrialLength] = useState<number>(14);
   const [gracePeriod, setGracePeriod] = useState<number>(3);
 
   // Initialize form with current values
@@ -48,7 +47,6 @@ export default function SettingsBilling() {
     if (appSettings) {
       setPaymentMethod(appSettings.defaultPaymentMethod);
       setRetryPolicy(appSettings.retryPolicy);
-      setTrialLength(appSettings.defaultTrialLength);
       setGracePeriod(appSettings.gracePeriod);
     }
   }, [appSettings]);
@@ -58,20 +56,13 @@ export default function SettingsBilling() {
     appSettings &&
     (paymentMethod !== appSettings.defaultPaymentMethod ||
       retryPolicy !== appSettings.retryPolicy ||
-      trialLength !== appSettings.defaultTrialLength ||
       gracePeriod !== appSettings.gracePeriod);
 
   const handleSave = async () => {
     if (!selectedApp?._id || !hasChanges) return;
 
     // Validate numbers
-    if (trialLength < 0 || trialLength > 365) {
-      toast.error("Invalid trial length", {
-        description: "Trial length must be between 0 and 365 days",
-      });
-      return;
-    }
-
+    // Validate grace period
     if (gracePeriod < 0 || gracePeriod > 30) {
       toast.error("Invalid grace period", {
         description: "Grace period must be between 0 and 30 days",
@@ -85,7 +76,6 @@ export default function SettingsBilling() {
         appId: selectedApp._id,
         defaultPaymentMethod: paymentMethod as any,
         retryPolicy: retryPolicy as any,
-        defaultTrialLength: trialLength,
         gracePeriod: gracePeriod,
       });
 
@@ -124,7 +114,9 @@ export default function SettingsBilling() {
               <CreditCard className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <CardTitle className="text-lg font-semibold">Payment Configuration</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Payment Configuration
+              </CardTitle>
               <CardDescription className="text-slate-500">
                 Configure default payment methods and billing policies
               </CardDescription>
@@ -186,7 +178,7 @@ export default function SettingsBilling() {
         </CardContent>
       </Card>
 
-      {/* Trial Settings */}
+      {/* Grace Period Settings */}
       <Card className="border-0 shadow-sm bg-white">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
@@ -194,59 +186,38 @@ export default function SettingsBilling() {
               <Clock className="h-5 w-5 text-emerald-600" />
             </div>
             <div>
-              <CardTitle className="text-lg font-semibold">Trial & Grace Periods</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Grace Period
+              </CardTitle>
               <CardDescription className="text-slate-500">
-                Set default trial periods and grace periods for subscriptions
+                Set grace period for failed payments before suspension
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Default Trial Length
-              </label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  placeholder="14"
-                  value={trialLength}
-                  onChange={(e) => setTrialLength(parseInt(e.target.value) || 0)}
-                  min={0}
-                  max={365}
-                  className="h-10 pr-12"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                  days
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                How long new subscriptions can be trialed for free (0-365 days)
-              </p>
+          <div className="max-w-xs space-y-2">
+            <label className="text-sm font-medium text-slate-700">
+              Grace Period
+            </label>
+            <div className="relative">
+              <Input
+                type="number"
+                placeholder="3"
+                value={gracePeriod}
+                onChange={(e) => setGracePeriod(parseInt(e.target.value) || 0)}
+                min={0}
+                max={30}
+                className="h-10 pr-12"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
+                days
+              </span>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Grace Period
-              </label>
-              <div className="relative">
-                <Input
-                  type="number"
-                  placeholder="3"
-                  value={gracePeriod}
-                  onChange={(e) => setGracePeriod(parseInt(e.target.value) || 0)}
-                  min={0}
-                  max={30}
-                  className="h-10 pr-12"
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                  days
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Additional days before subscription cancellation (0-30 days)
-              </p>
-            </div>
+            <p className="text-xs text-slate-500">
+              Days to wait before suspending service after failed payment (0-30
+              days)
+            </p>
           </div>
         </CardContent>
       </Card>

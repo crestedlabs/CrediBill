@@ -11,6 +11,7 @@ import { CustomerFilters } from "@/components/customers/customer-filters";
 import { CustomersSkeleton } from "@/components/customers/customers-skeleton";
 import Link from "next/link";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -363,8 +364,9 @@ function CustomerActionMenu({
       });
       setShowDeleteDialog(false);
     } catch (error: any) {
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to delete customer", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsDeleting(false);

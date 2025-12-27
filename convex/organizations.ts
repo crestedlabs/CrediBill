@@ -15,9 +15,33 @@ export const createOrganization = mutation({
       throw new Error("Organization name must be at least 3 characters");
     }
 
+    const trimmedName = name.trim();
+
+    // Check if user already has an organization with this name
+    const existingMemberships = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    // Get all organizations this user is a member of
+    const existingOrgs = await Promise.all(
+      existingMemberships.map((membership) =>
+        ctx.db.get(membership.organizationId)
+      )
+    );
+
+    // Check for duplicate names (case-insensitive)
+    const duplicateName = existingOrgs.find(
+      (org) => org && org.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (duplicateName) {
+      throw new Error("You already have an organization with this name");
+    }
+
     // Create the organization
     const organizationId = await ctx.db.insert("organizations", {
-      name: name.trim(),
+      name: trimmedName,
       ownerUserId: user._id,
     });
 

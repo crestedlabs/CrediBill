@@ -10,6 +10,7 @@ import SettingsBilling from "@/components/settings/settings-billing";
 import SettingsGeneral from "@/components/settings/settings-general";
 import SettingsTeam from "@/components/settings/settings-team";
 import SettingsWebhooks from "@/components/settings/settings-webhooks";
+import SettingsPaymentProviders from "@/components/settings/settings-payment-providers";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PackageOpen, Plus } from "lucide-react";
@@ -101,13 +102,6 @@ function SettingsManager() {
               {selectedApp?.name || "your app"}
             </span>
           </p>
-          <div className="mt-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <span className="font-medium">Note:</span> All settings below are
-              specific to{" "}
-              <span className="font-semibold">{selectedApp?.name}</span>.
-            </p>
-          </div>
         </div>
       </div>
 
@@ -130,6 +124,12 @@ function SettingsManager() {
                     className="w-full justify-start rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
                   >
                     Billing
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="payment-providers"
+                    className="w-full justify-start rounded-lg px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900 data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm"
+                  >
+                    Payment Providers
                   </TabsTrigger>
                   <TabsTrigger
                     value="webhooks"
@@ -157,6 +157,12 @@ function SettingsManager() {
                   General
                 </TabsTrigger>
                 <TabsTrigger
+                  value="payment-providers"
+                  className="whitespace-nowrap rounded-md px-6 py-3 text-base font-medium transition-colors data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                >
+                  Providers
+                </TabsTrigger>
+                <TabsTrigger
                   value="billing"
                   className="whitespace-nowrap rounded-md px-6 py-3 text-base font-medium transition-colors data-[state=active]:bg-white data-[state=active]:shadow-sm"
                 >
@@ -179,6 +185,9 @@ function SettingsManager() {
 
             {/* Content Area */}
             <div className="lg:col-span-9 px-4 sm:px-6 lg:px-8 pb-12">
+              <TabsContent value="payment-providers" className="mt-0">
+                <SettingsPaymentProviders />
+              </TabsContent>
               <TabsContent value="general" className="mt-0">
                 <SettingsGeneral />
               </TabsContent>

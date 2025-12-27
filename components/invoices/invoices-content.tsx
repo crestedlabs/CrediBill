@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/currency-utils";
 import { InvoiceFilters } from "@/components/invoices/invoice-filters";
 import {
   DropdownMenu,
@@ -36,10 +37,7 @@ import {
   PackageOpen,
   Plus,
   CheckCircle2,
-  DollarSign,
 } from "lucide-react";
-import { RecordPaymentDialog } from "@/components/payments/record-payment-dialog";
-import { PaymentHistory } from "@/components/payments/payment-history";
 
 const statusConfig: Record<
   string,
@@ -177,40 +175,9 @@ function InvoicesManager() {
     });
   };
 
-  const formatCurrency = (amount: number, currency: string) => {
-    // Convert from smallest unit (e.g., cents to dollars)
-    const divisor =
-      currency === "UGX" ||
-      currency === "KES" ||
-      currency === "TZS" ||
-      currency === "RWF"
-        ? 1
-        : 100;
-    const displayAmount = amount / divisor;
-
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(displayAmount);
-  };
-
   const openDetails = (invoiceId: Id<"invoices">) => {
     setSelectedInvoiceId(invoiceId);
     setDetailsOpen(true);
-  };
-
-  const handleMarkAsPaid = async (invoiceId: Id<"invoices">) => {
-    try {
-      await updateInvoiceStatus({
-        invoiceId,
-        status: "paid",
-      });
-      toast.success("Invoice marked as paid");
-    } catch (error) {
-      toast.error("Failed to update invoice");
-    }
   };
 
   const handleVoidInvoice = async (invoiceId: Id<"invoices">) => {
@@ -404,9 +371,6 @@ function InvoicesManager() {
                               <InvoiceActionMenu
                                 invoice={invoice}
                                 onViewDetails={() => openDetails(invoice._id)}
-                                onMarkAsPaid={() =>
-                                  handleMarkAsPaid(invoice._id)
-                                }
                                 onVoidInvoice={() =>
                                   handleVoidInvoice(invoice._id)
                                 }
@@ -448,12 +412,10 @@ function InvoicesManager() {
 function InvoiceActionMenu({
   invoice,
   onViewDetails,
-  onMarkAsPaid,
   onVoidInvoice,
 }: {
   invoice: any;
   onViewDetails: () => void;
-  onMarkAsPaid: () => void;
   onVoidInvoice: () => void;
 }) {
   return (
@@ -468,14 +430,6 @@ function InvoiceActionMenu({
           <Eye className="mr-2 h-4 w-4" />
           View details
         </DropdownMenuItem>
-        {invoice.status === "open" && (
-          <>
-            <DropdownMenuItem onClick={onMarkAsPaid}>
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Mark as paid
-            </DropdownMenuItem>
-          </>
-        )}
         {(invoice.status === "open" || invoice.status === "failed") && (
           <>
             <DropdownMenuSeparator />
@@ -632,35 +586,6 @@ function InvoiceDetailsSheet({
                   </p>
                 </div>
               )}
-          </div>
-
-          {/* Record Payment Button - Only show for open/failed invoices */}
-          {(invoice.status === "open" || invoice.status === "failed") && (
-            <>
-              <Separator />
-              <RecordPaymentDialog
-                invoiceId={invoice._id}
-                invoiceNumber={invoice.invoiceNumber}
-                currency={invoice.currency}
-                amountDue={invoice.amountDue}
-                amountPaid={invoice.amountPaid || 0}
-                trigger={
-                  <Button className="w-full">
-                    <DollarSign className="mr-2 h-4 w-4" />
-                    Record Payment
-                  </Button>
-                }
-              />
-            </>
-          )}
-
-          {/* Payment History */}
-          <Separator />
-          <div className="px-0">
-            <PaymentHistory
-              invoiceId={invoice._id}
-              currency={invoice.currency}
-            />
           </div>
 
           {invoice.subscription && (

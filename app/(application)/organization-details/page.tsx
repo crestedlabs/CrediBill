@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import OrganizationDetailsContent from "@/components/organization-details-content";
+import OrganizationDetailsContent from "@/components/organizations/organization-details-content";
 
 export const metadata: Metadata = {
   title: "Organization Details - CrediBill",

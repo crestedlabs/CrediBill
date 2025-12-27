@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Rocket, Globe, Settings, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 import {
   createAppDefaults,
   type CreateAppFormData,
@@ -80,8 +81,9 @@ export function CreateAppFormSimple() {
 
       router.push(`/overview`);
     } catch (error: any) {
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to create app", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsSubmitting(false);

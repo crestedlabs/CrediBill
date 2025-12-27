@@ -2,6 +2,68 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 
+// Get plan statistics (subscribers and revenue)
+export const getPlanStats = query({
+  args: {
+    planId: v.id("plans"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Get the plan
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) throw new Error("Plan not found");
+
+    // Verify user has access to the organization
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", plan.organizationId).eq("userId", user._id)
+      )
+      .first();
+
+    if (!membership) throw new Error("Unauthorized");
+
+    // Count active subscriptions
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_plan", (q) => q.eq("planId", args.planId))
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "active"),
+          q.eq(q.field("status"), "trialing")
+        )
+      )
+      .collect();
+
+    const subscriberCount = subscriptions.length;
+
+    // Calculate revenue from paid invoices
+    let totalRevenue = 0;
+
+    for (const subscription of subscriptions) {
+      const invoices = await ctx.db
+        .query("invoices")
+        .withIndex("by_subscription", (q) =>
+          q.eq("subscriptionId", subscription._id)
+        )
+        .filter((q) => q.eq(q.field("status"), "paid"))
+        .collect();
+
+      for (const invoice of invoices) {
+        totalRevenue += invoice.amountPaid || 0;
+      }
+    }
+
+    return {
+      subscriberCount,
+      totalRevenue,
+      currency: plan.currency,
+    };
+  },
+});
+
 // Get all plans for an app
 export const getPlansByApp = query({
   args: {
@@ -54,6 +116,7 @@ export const createPlan = mutation({
       v.literal("yearly"),
       v.literal("one-time")
     ),
+    trialDays: v.optional(v.number()), // Plan-specific trial period
     usageMetric: v.optional(v.string()),
     unitPrice: v.optional(v.number()),
     freeUnits: v.optional(v.number()),
@@ -109,6 +172,7 @@ export const createPlan = mutation({
       baseAmount: args.baseAmount,
       currency: args.currency as "UGX" | "KES" | "RWF" | "TZS" | "USD",
       interval: args.interval,
+      trialDays: args.trialDays,
       usageMetric: args.usageMetric,
       unitPrice: args.unitPrice,
       freeUnits: args.freeUnits,
@@ -134,7 +198,7 @@ export const updatePlan = mutation({
       v.union(v.literal("flat"), v.literal("usage"), v.literal("hybrid"))
     ),
     baseAmount: v.optional(v.number()),
-    currency: v.optional(v.string()),
+    // Currency is intentionally excluded - it cannot be changed after plan creation
     interval: v.optional(
       v.union(
         v.literal("monthly"),
@@ -143,6 +207,7 @@ export const updatePlan = mutation({
         v.literal("one-time")
       )
     ),
+    trialDays: v.optional(v.number()), // Plan-specific trial period
     usageMetric: v.optional(v.string()),
     unitPrice: v.optional(v.number()),
     freeUnits: v.optional(v.number()),
@@ -203,12 +268,14 @@ export const updatePlan = mutation({
       updates.baseAmount = args.baseAmount;
     }
 
-    if (args.currency !== undefined) {
-      updates.currency = args.currency;
-    }
+    // Currency is intentionally not updatable to prevent revenue calculation issues
 
     if (args.interval !== undefined) {
       updates.interval = args.interval;
+    }
+
+    if (args.trialDays !== undefined) {
+      updates.trialDays = args.trialDays;
     }
 
     if (args.usageMetric !== undefined) {

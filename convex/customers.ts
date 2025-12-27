@@ -388,16 +388,6 @@ export const deleteCustomer = mutation({
         .collect();
 
       for (const invoice of invoices) {
-        // Delete payments for this invoice
-        const payments = await ctx.db
-          .query("payments")
-          .withIndex("by_invoice", (q) => q.eq("invoiceId", invoice._id))
-          .collect();
-
-        for (const payment of payments) {
-          await ctx.db.delete(payment._id);
-        }
-
         await ctx.db.delete(invoice._id);
       }
     }

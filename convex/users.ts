@@ -20,18 +20,18 @@ export const upsertFromClerk = internalMutation({
     };
 
     const existingUser = await userByExternalId(ctx, data.id);
-    
+
     if (existingUser === null) {
       // Create new user
       const userId = await ctx.db.insert("users", userAttributes);
-      
+
       // Create organization for new user
       const orgName = `${userAttributes.name}'s Organization`;
       const organizationId = await ctx.db.insert("organizations", {
         name: orgName,
         ownerUserId: userId,
       });
-      
+
       // Add user as owner of the organization
       await ctx.db.insert("organizationMembers", {
         organizationId,
@@ -89,7 +89,9 @@ export const deleteFromClerk = internalMutation({
             // Delete usage events for this subscription
             const usageEvents = await ctx.db
               .query("usageEvents")
-              .withIndex("by_subscription", (q) => q.eq("subscriptionId", subscription._id))
+              .withIndex("by_subscription", (q) =>
+                q.eq("subscriptionId", subscription._id)
+              )
               .collect();
             for (const event of usageEvents) {
               await ctx.db.delete(event._id);
@@ -98,7 +100,9 @@ export const deleteFromClerk = internalMutation({
             // Delete usage summaries for this subscription
             const usageSummaries = await ctx.db
               .query("usageSummaries")
-              .withIndex("by_subscription_period", (q) => q.eq("subscriptionId", subscription._id))
+              .withIndex("by_subscription_period", (q) =>
+                q.eq("subscriptionId", subscription._id)
+              )
               .collect();
             for (const summary of usageSummaries) {
               await ctx.db.delete(summary._id);
@@ -107,20 +111,13 @@ export const deleteFromClerk = internalMutation({
             // Get all invoices for this subscription
             const invoices = await ctx.db
               .query("invoices")
-              .withIndex("by_subscription", (q) => q.eq("subscriptionId", subscription._id))
+              .withIndex("by_subscription", (q) =>
+                q.eq("subscriptionId", subscription._id)
+              )
               .collect();
 
             for (const invoice of invoices) {
-              // Delete payments for this invoice
-              const payments = await ctx.db
-                .query("payments")
-                .withIndex("by_invoice", (q) => q.eq("invoiceId", invoice._id))
-                .collect();
-              for (const payment of payments) {
-                await ctx.db.delete(payment._id);
-              }
-
-              // Delete the invoice
+              // Delete the invoice directly
               await ctx.db.delete(invoice._id);
             }
 

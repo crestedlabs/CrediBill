@@ -16,6 +16,7 @@ import { MoreVertical, Edit, Trash2 } from "lucide-react";
 import { EditPlanDialog } from "@/components/plans/edit-plan-dialog";
 import { DeletePlanDialog } from "@/components/plans/delete-plan-dialog";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 
 interface PlanActionMenuProps {
   plan: any;
@@ -36,8 +37,9 @@ export function PlanActionMenu({ plan }: PlanActionMenuProps) {
       });
       setShowDeleteDialog(false);
     } catch (error: any) {
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to delete plan", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsDeleting(false);

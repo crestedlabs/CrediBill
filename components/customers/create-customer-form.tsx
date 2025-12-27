@@ -14,6 +14,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 import { Loader2 } from "lucide-react";
 import type { Id } from "@/convex/_generated/dataModel";
 
@@ -85,8 +86,9 @@ export function CreateCustomerForm({
       onSuccess?.();
     } catch (error: any) {
       console.error("Error creating customer:", error);
+      const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to create customer", {
-        description: error.message || "Please try again",
+        description: userFriendlyMessage,
       });
     } finally {
       setIsSubmitting(false);

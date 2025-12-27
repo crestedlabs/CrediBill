@@ -44,16 +44,29 @@ export const createSubscription = mutation({
 
     // Get the plan
     const plan = await ctx.db.get(args.planId);
-    if (!plan) throw new ConvexError("Plan not found");
+    if (!plan)
+      throw new ConvexError({
+        message:
+          "The selected plan could not be found. Please refresh the page and try again.",
+        code: "PLAN_NOT_FOUND",
+      });
 
     // Verify plan belongs to this app
     if (plan.appId !== args.appId) {
-      throw new ConvexError("Plan does not belong to this app");
+      throw new ConvexError({
+        message:
+          "This plan is not available for the selected application. Please contact support if you believe this is an error.",
+        code: "PLAN_APP_MISMATCH",
+      });
     }
 
     // Check if plan is active
     if (plan.status === "archived") {
-      throw new ConvexError("Cannot subscribe to an archived plan");
+      throw new ConvexError({
+        message:
+          "This plan is no longer available for new subscriptions. Please choose a different plan.",
+        code: "PLAN_ARCHIVED",
+      });
     }
 
     // Check for existing active subscription to the same plan
@@ -71,15 +84,18 @@ export const createSubscription = mutation({
       .first();
 
     if (existingSubscription) {
-      throw new ConvexError(
-        "Customer already has an active subscription to this plan"
-      );
+      throw new ConvexError({
+        message:
+          "This customer already has an active subscription to this plan. Please cancel the existing subscription first or choose a different plan.",
+        code: "DUPLICATE_SUBSCRIPTION",
+      });
     }
 
     // Calculate dates
     const now = Date.now();
     const startDate = args.startDate || now;
-    const trialDays = args.trialDays || 0;
+    // Use trial period from plan, fallback to provided trialDays for backward compatibility
+    const trialDays = plan.trialDays ?? args.trialDays ?? 0;
     const isTrialing = trialDays > 0;
 
     // Calculate period end based on plan interval

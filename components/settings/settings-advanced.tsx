@@ -29,6 +29,7 @@ import {
 import { Settings, AlertTriangle, Save } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
 
 export default function SettingsAdvanced() {
   const { selectedApp } = useApp();
@@ -99,9 +100,8 @@ export default function SettingsAdvanced() {
       toast.success("Advanced settings saved successfully");
       setHasChanges(false);
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to save settings"
-      );
+      const userFriendlyMessage = parseConvexError(error);
+      toast.error(userFriendlyMessage || "Failed to save settings");
     } finally {
       setIsSaving(false);
     }
@@ -123,9 +123,8 @@ export default function SettingsAdvanced() {
       // Redirect to apps page
       router.push("/apps");
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to delete app"
-      );
+      const userFriendlyMessage = parseConvexError(error);
+      toast.error(userFriendlyMessage || "Failed to delete app");
     } finally {
       setIsDeleting(false);
     }

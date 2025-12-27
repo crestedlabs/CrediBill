@@ -38,6 +38,7 @@ export function EditPlanForm({
       | "quarterly"
       | "yearly"
       | "one-time",
+    trialDays: plan?.trialDays || 0,
     usageMetric: plan?.usageMetric || "",
     unitPrice: plan?.unitPrice as number | undefined,
     freeUnits: plan?.freeUnits as number | undefined,
@@ -57,6 +58,7 @@ export function EditPlanForm({
         baseAmount: plan.baseAmount,
         currency: plan.currency,
         interval: plan.interval,
+        trialDays: plan.trialDays || 0,
         usageMetric: plan.usageMetric || "",
         unitPrice: plan.unitPrice,
         freeUnits: plan.freeUnits,
@@ -78,6 +80,7 @@ export function EditPlanForm({
       formData.baseAmount !== plan.baseAmount ||
       formData.currency !== plan.currency ||
       formData.interval !== plan.interval ||
+      (formData.trialDays || 0) !== (plan.trialDays || 0) ||
       (formData.usageMetric || "") !== (plan.usageMetric || "") ||
       formData.unitPrice !== plan.unitPrice ||
       formData.freeUnits !== plan.freeUnits ||
@@ -135,8 +138,9 @@ export function EditPlanForm({
         description: formData.description,
         pricingModel: formData.pricingModel,
         baseAmount: formData.baseAmount,
-        currency: formData.currency,
+        // currency is intentionally omitted - it cannot be changed
         interval: formData.interval,
+        trialDays: formData.trialDays,
         usageMetric: formData.usageMetric,
         unitPrice: formData.unitPrice,
         freeUnits: formData.freeUnits,
@@ -389,6 +393,19 @@ export function EditPlanForm({
           { value: "one-time", label: "One-time" },
         ]}
         required
+        disabled={isSubmitting}
+      />
+
+      {/* Trial Period */}
+      <FormNumberField
+        label="Trial Period (days)"
+        value={formData.trialDays || 0}
+        onChange={(value) =>
+          setFormData((prev) => ({ ...prev, trialDays: value }))
+        }
+        min={0}
+        max={365}
+        helpText="Free trial period before billing starts. Set to 0 for no trial."
         disabled={isSubmitting}
       />
 

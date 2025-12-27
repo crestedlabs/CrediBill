@@ -2,8 +2,11 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Zap, TrendingUp, Sparkles } from "lucide-react";
+import { Zap, TrendingUp, Sparkles, Users } from "lucide-react";
 import { PlanActionMenu } from "./plan-action-menu";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { Id } from "@/convex/_generated/dataModel";
 
 interface PlanCardProps {
   plan: any;
@@ -11,30 +14,22 @@ interface PlanCardProps {
 
 export function PlanCard({ plan }: PlanCardProps) {
   const isArchived = plan.status === "archived";
+  const stats = useQuery(api.plans.getPlanStats, {
+    planId: plan._id as Id<"plans">,
+  });
 
   // Format price based on pricing model
   const formatPrice = () => {
-    const isUGX = plan.currency === "UGX";
-    
     if (plan.pricingModel === "flat" && plan.baseAmount) {
-      const amount = plan.baseAmount;
-      // Only show K for UGX (high values), USD and others show full amounts
-      if (isUGX && amount >= 1000000) {
-        return `${(amount / 1000000).toFixed(1)}M`;
-      } else if (isUGX && amount >= 1000) {
-        return `${(amount / 1000).toFixed(0)}K`;
-      }
-      return amount.toLocaleString();
+      return plan.baseAmount.toLocaleString();
     }
     if (plan.pricingModel === "usage" && plan.unitPrice) {
-      const amount = plan.unitPrice;
-      return `${amount.toLocaleString()}/unit`;
+      return `${plan.unitPrice.toLocaleString()}/unit`;
     }
     if (plan.pricingModel === "hybrid") {
       const base = plan.baseAmount || 0;
       const unit = plan.unitPrice || 0;
-      const formattedBase = isUGX && base >= 1000 ? `${(base / 1000).toFixed(0)}K` : base.toLocaleString();
-      return `${formattedBase} + ${unit.toLocaleString()}/unit`;
+      return `${base.toLocaleString()} + ${unit.toLocaleString()}/unit`;
     }
     return "Custom";
   };
@@ -66,13 +61,13 @@ export function PlanCard({ plan }: PlanCardProps) {
 
   return (
     <Card
-      className={`border transition-all hover:shadow-md ${
+      className={`border transition-all hover:shadow-md flex flex-col ${
         isArchived
           ? "border-slate-300 bg-slate-50"
           : "border-slate-200 bg-white"
       }`}
     >
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 flex-1">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -113,7 +108,12 @@ export function PlanCard({ plan }: PlanCardProps) {
               </span>
               {plan.interval !== "one-time" && (
                 <span className="text-xs text-slate-500">
-                  /{plan.interval === "monthly" ? "mo" : plan.interval === "quarterly" ? "qtr" : "yr"}
+                  /
+                  {plan.interval === "monthly"
+                    ? "mo"
+                    : plan.interval === "quarterly"
+                      ? "qtr"
+                      : "yr"}
                 </span>
               )}
             </div>
@@ -129,28 +129,19 @@ export function PlanCard({ plan }: PlanCardProps) {
         )}
       </CardHeader>
 
-      <CardContent className="pt-3">
-        <div className="flex items-center justify-between text-sm">
-          <div>
-            <p className="text-slate-500">Subscribers</p>
-            <p
-              className={`text-lg font-semibold ${
-                isArchived ? "text-slate-600" : "text-slate-900"
-              }`}
-            >
-              0
-            </p>
+      <CardContent className="pt-3 mt-auto">
+        <div className="flex items-center justify-between px-2 py-1 bg-slate-50 rounded-lg">
+          <div className="flex items-center gap-2 text-xs text-slate-600">
+            <Users className="h-4 w-4" />
+            <span className="font-medium">Subscribers</span>
           </div>
-          <div className="text-right">
-            <p className="text-slate-500">Revenue</p>
-            <p
-              className={`text-lg font-semibold ${
-                isArchived ? "text-slate-600" : "text-slate-900"
-              }`}
-            >
-              0
-            </p>
-          </div>
+          <p
+            className={`text-xl font-bold ${
+              isArchived ? "text-slate-500" : "text-blue-600"
+            }`}
+          >
+            {stats?.subscriberCount ?? "-"}
+          </p>
         </div>
       </CardContent>
     </Card>
