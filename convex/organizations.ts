@@ -136,6 +136,232 @@ export const renameOrg = mutation({
   },
 });
 
+export const getOrganizationMembers = query({
+  args: {
+    organizationId: v.id("organizations"),
+  },
+  handler: async (ctx, { organizationId }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Verify user is a member of this organization
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error(
+        "Access denied: You are not a member of this organization"
+      );
+    }
+
+    // Get all members
+    const memberships = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org", (q) => q.eq("organizationId", organizationId))
+      .collect();
+
+    // Get user details for each member
+    const members = await Promise.all(
+      memberships.map(async (m) => {
+        const userDoc = await ctx.db.get(m.userId);
+        return {
+          _id: m._id,
+          userId: m.userId,
+          name: userDoc?.name || "Unknown",
+          email: userDoc?.email || "",
+          role: m.role,
+        };
+      })
+    );
+
+    return members;
+  },
+});
+
+export const inviteMember = mutation({
+  args: {
+    organizationId: v.id("organizations"),
+    email: v.string(),
+    role: v.union(v.literal("admin"), v.literal("member"), v.literal("viewer")),
+  },
+  handler: async (ctx, { organizationId, email, role }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Verify user is owner or admin of this organization
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error(
+        "Access denied: You are not a member of this organization"
+      );
+    }
+
+    if (membership.role !== "owner" && membership.role !== "admin") {
+      throw new Error(
+        "Access denied: Only owners and admins can invite members"
+      );
+    }
+
+    // Validate email
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!trimmedEmail || !trimmedEmail.includes("@")) {
+      throw new Error("Invalid email address");
+    }
+
+    // Check if user exists in the system
+    const invitedUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", trimmedEmail))
+      .unique();
+
+    if (!invitedUser) {
+      throw new Error(
+        "User not found. They must create an account first before being invited."
+      );
+    }
+
+    // Check if user is already a member
+    const existingMembership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", organizationId).eq("userId", invitedUser._id)
+      )
+      .unique();
+
+    if (existingMembership) {
+      throw new Error("This user is already a member of this organization");
+    }
+
+    // Add user to organization
+    await ctx.db.insert("organizationMembers", {
+      organizationId,
+      userId: invitedUser._id,
+      role,
+    });
+
+    return {
+      success: true,
+      message: `${invitedUser.name} has been added to the organization`,
+    };
+  },
+});
+
+export const updateMemberRole = mutation({
+  args: {
+    membershipId: v.id("organizationMembers"),
+    newRole: v.union(
+      v.literal("admin"),
+      v.literal("member"),
+      v.literal("viewer")
+    ),
+  },
+  handler: async (ctx, { membershipId, newRole }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Get the membership to update
+    const targetMembership = await ctx.db.get(membershipId);
+    if (!targetMembership) throw new Error("Membership not found");
+
+    // Verify user is owner or admin of this organization
+    const userMembership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q
+          .eq("organizationId", targetMembership.organizationId)
+          .eq("userId", user._id)
+      )
+      .unique();
+
+    if (!userMembership) {
+      throw new Error(
+        "Access denied: You are not a member of this organization"
+      );
+    }
+
+    if (userMembership.role !== "owner" && userMembership.role !== "admin") {
+      throw new Error(
+        "Access denied: Only owners and admins can change member roles"
+      );
+    }
+
+    // Prevent changing owner role
+    if (targetMembership.role === "owner") {
+      throw new Error("Cannot change the role of the organization owner");
+    }
+
+    // Prevent non-owners from creating admins
+    if (newRole === "admin" && userMembership.role !== "owner") {
+      throw new Error("Only owners can promote members to admin");
+    }
+
+    // Update the role
+    await ctx.db.patch(membershipId, {
+      role: newRole,
+    });
+
+    return { success: true, message: "Member role updated successfully" };
+  },
+});
+
+export const removeMember = mutation({
+  args: {
+    membershipId: v.id("organizationMembers"),
+  },
+  handler: async (ctx, { membershipId }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Get the membership to remove
+    const targetMembership = await ctx.db.get(membershipId);
+    if (!targetMembership) throw new Error("Membership not found");
+
+    // Verify user is owner or admin of this organization
+    const userMembership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q
+          .eq("organizationId", targetMembership.organizationId)
+          .eq("userId", user._id)
+      )
+      .unique();
+
+    if (!userMembership) {
+      throw new Error(
+        "Access denied: You are not a member of this organization"
+      );
+    }
+
+    if (userMembership.role !== "owner" && userMembership.role !== "admin") {
+      throw new Error(
+        "Access denied: Only owners and admins can remove members"
+      );
+    }
+
+    // Prevent removing the owner
+    if (targetMembership.role === "owner") {
+      throw new Error(
+        "Cannot remove the organization owner. Transfer ownership or delete the organization instead."
+      );
+    }
+
+    // Delete the membership
+    await ctx.db.delete(membershipId);
+
+    return { success: true, message: "Member removed successfully" };
+  },
+});
+
 export const deleteOrganization = mutation({
   args: {
     organizationId: v.id("organizations"),

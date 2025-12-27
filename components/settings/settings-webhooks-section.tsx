@@ -4,6 +4,11 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
+  useAppPermissions,
+  getPermissionMessage,
+} from "@/hooks/use-app-permissions";
+import { PermissionAwareSection } from "@/components/ui/permission-aware";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -42,6 +47,7 @@ interface SettingsWebhooksSectionProps {
 export function SettingsWebhooksSection({
   appId,
 }: SettingsWebhooksSectionProps) {
+  const { canManageWebhooks } = useAppPermissions();
   const webhooks = useQuery(api.webhooks.getWebhooksByApp, { appId });
   const deleteWebhook = useMutation(api.webhooks.deleteWebhook);
   const updateWebhookStatus = useMutation(api.webhooks.updateWebhookStatus);
@@ -101,101 +107,110 @@ export function SettingsWebhooksSection({
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          {webhooks === undefined ? (
-            <div className="flex items-center justify-center py-8">
-              <Spinner className="h-8 w-8" />
-            </div>
-          ) : (
-            <>
-              <div className="space-y-3">
-                {webhooks.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500">
-                    <Webhook className="h-12 w-12 mx-auto mb-3 text-slate-300" />
-                    <p className="text-sm font-medium">
-                      No webhooks configured
-                    </p>
-                    <p className="text-xs mt-1">
-                      Add a webhook to receive real-time event notifications
-                    </p>
-                  </div>
-                ) : (
-                  webhooks.map((webhook) => (
-                    <div
-                      key={webhook._id}
-                      className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex-1 min-w-0">
-                          <code className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded font-mono block truncate">
-                            {webhook.url}
-                          </code>
-                          {webhook.description && (
-                            <p className="text-xs text-slate-500 mt-2">
-                              {webhook.description}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            className={
-                              webhook.status === "active"
-                                ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                                : "bg-slate-100 text-slate-600 border-slate-200"
-                            }
-                          >
-                            {webhook.status === "active"
-                              ? "Active"
-                              : "Inactive"}
-                          </Badge>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 hover:bg-slate-200"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  handleToggleStatus(
-                                    webhook._id,
-                                    webhook.status
-                                  )
-                                }
-                              >
-                                {webhook.status === "active"
-                                  ? "Deactivate"
-                                  : "Activate"}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => setWebhookToDelete(webhook._id)}
-                              >
-                                <Trash className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      <p className="text-sm text-slate-500">
-                        <span className="font-medium">Events:</span>{" "}
-                        {webhook.events.join(", ")}
+          <PermissionAwareSection
+            canEdit={canManageWebhooks}
+            message={getPermissionMessage(["owner", "admin"])}
+          >
+            {webhooks === undefined ? (
+              <div className="flex items-center justify-center py-8">
+                <Spinner className="h-8 w-8" />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  {webhooks.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">
+                      <Webhook className="h-12 w-12 mx-auto mb-3 text-slate-300" />
+                      <p className="text-sm font-medium">
+                        No webhooks configured
+                      </p>
+                      <p className="text-xs mt-1">
+                        Add a webhook to receive real-time event notifications
                       </p>
                     </div>
-                  ))
-                )}
-              </div>
+                  ) : (
+                    webhooks.map((webhook) => (
+                      <div
+                        key={webhook._id}
+                        className="p-4 rounded-lg border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className="flex-1 min-w-0">
+                            <code className="text-sm text-slate-600 bg-slate-100 px-2 py-1 rounded font-mono block truncate">
+                              {webhook.url}
+                            </code>
+                            {webhook.description && (
+                              <p className="text-xs text-slate-500 mt-2">
+                                {webhook.description}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              className={
+                                webhook.status === "active"
+                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                                  : "bg-slate-100 text-slate-600 border-slate-200"
+                              }
+                            >
+                              {webhook.status === "active"
+                                ? "Active"
+                                : "Inactive"}
+                            </Badge>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 hover:bg-slate-200"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem
+                                  onClick={() =>
+                                    handleToggleStatus(
+                                      webhook._id,
+                                      webhook.status
+                                    )
+                                  }
+                                >
+                                  {webhook.status === "active"
+                                    ? "Deactivate"
+                                    : "Activate"}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600"
+                                  onClick={() =>
+                                    setWebhookToDelete(webhook._id)
+                                  }
+                                >
+                                  <Trash className="h-4 w-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
+                        <p className="text-sm text-slate-500">
+                          <span className="font-medium">Events:</span>{" "}
+                          {webhook.events.join(", ")}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
 
-              <div className="mt-4">
-                <AddWebhookDialog />
-              </div>
-            </>
-          )}
+                {canManageWebhooks && (
+                  <div className="mt-4">
+                    <AddWebhookDialog />
+                  </div>
+                )}
+              </>
+            )}
+          </PermissionAwareSection>
         </CardContent>
       </Card>
 

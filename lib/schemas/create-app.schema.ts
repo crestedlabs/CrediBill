@@ -21,29 +21,34 @@ export const createAppSchema = z.object({
     message: "Please select a valid currency",
   }),
 
-  timezone: z.enum(["eat", "cat", "wat"], {
-    message: "Please select a valid timezone",
-  }),
+  timezone: z
+    .enum(["eat", "cat", "wat"], {
+      message: "Please select a valid timezone",
+    })
+    .optional(), // DEPRECATED: May return when timezone-aware billing is implemented
 
   language: z.enum(["en", "sw", "fr"], {
     message: "Please select a valid language",
   }),
 
-  // Payment Settings
-  defaultPaymentMethod: z.enum(["momo", "credit-card", "bank"], {
-    message: "Please select a valid payment method",
-  }),
+  // Payment Settings (DEPRECATED: defaultPaymentMethod - use payment provider configuration)
+  defaultPaymentMethod: z
+    .enum(["momo", "credit-card", "bank"], {
+      message: "Please select a valid payment method",
+    })
+    .optional(),
 
   retryPolicy: z.enum(["automatic", "manual", "none"], {
     message: "Please select a valid retry policy",
   }),
 
-  // Billing Settings
+  // Billing Settings (DEPRECATED: defaultTrialLength - use plan-level trialDays instead)
   defaultTrialLength: z
     .number()
     .int("Trial length must be a whole number")
     .min(0, "Trial length cannot be negative")
-    .max(365, "Trial length cannot exceed 365 days"),
+    .max(365, "Trial length cannot exceed 365 days")
+    .optional(),
 
   gracePeriod: z
     .number()
@@ -61,10 +66,7 @@ export const createAppDefaults: CreateAppFormData = {
   description: "",
   organizationId: "",
   defaultCurrency: "ugx",
-  timezone: "eat",
   language: "en",
-  defaultPaymentMethod: "momo",
   retryPolicy: "automatic",
-  defaultTrialLength: 14,
   gracePeriod: 3,
 };

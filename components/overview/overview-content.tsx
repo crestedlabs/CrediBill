@@ -29,8 +29,6 @@ import {
   CreditCard,
 } from "lucide-react";
 
-
-
 export default function OverviewContent() {
   return (
     <>
@@ -118,7 +116,15 @@ function OverviewDashboard() {
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="border-b border-slate-200 bg-white/80 backdrop-blur-sm px-4 py-6 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
-            <h1 className="text-2xl font-bold text-slate-900">Overview</h1>
+            <div className="flex items-baseline gap-2">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-slate-900 via-blue-900 to-slate-900 bg-clip-text text-transparent">
+                {selectedApp?.name || "App"}
+              </h1>
+              <span className="text-2xl font-light text-slate-400">/</span>
+              <h2 className="text-2xl font-semibold text-slate-600">
+                Overview
+              </h2>
+            </div>
             <p className="text-sm text-slate-600 mt-1">
               Loading your business metrics...
             </p>
@@ -128,17 +134,18 @@ function OverviewDashboard() {
     );
   }
 
-  // Primary currency (most used)
-  const primaryCurrency = Object.entries(metrics.currencyBreakdown).sort(
-    ([, a], [, b]) => b - a
-  )[0]?.[0] || "USD";
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+    <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur-sm px-4 py-6 sm:px-6 lg:px-8 shadow-sm">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold text-slate-900">Overview</h1>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600 bg-clip-text text-transparent">
+              {selectedApp?.name || "App"}
+            </h1>
+            <span className="text-2xl font-light text-slate-400">/</span>
+            <h2 className="text-2xl font-semibold text-slate-700">Overview</h2>
+          </div>
           <p className="text-sm text-slate-600 mt-1">
             Real-time business metrics and performance
           </p>
@@ -162,14 +169,14 @@ function OverviewDashboard() {
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-xs font-semibold uppercase tracking-wide text-emerald-50">
-                    {primaryCurrency}
+                    {metrics.mrrCurrency || "USD"}
                   </span>
                   <p className="text-3xl font-bold">
                     {metrics.mrr.toLocaleString()}
                   </p>
                 </div>
                 <p className="text-xs text-emerald-50 mt-2">
-                  Normalized to monthly
+                  Converted to default currency
                 </p>
               </CardContent>
             </Card>
@@ -337,8 +344,7 @@ function OverviewDashboard() {
                             className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
                             style={{
                               width: `${Math.min(
-                                (plan.mrr /
-                                  metrics.planPerformance[0].mrr) *
+                                (plan.mrr / metrics.planPerformance[0].mrr) *
                                   100,
                                 100
                               )}%`,
@@ -349,7 +355,9 @@ function OverviewDashboard() {
                     ))
                   ) : (
                     <div className="p-8 text-center text-slate-500">
-                      <p className="text-sm">No plans with active subscribers yet</p>
+                      <p className="text-sm">
+                        No plans with active subscribers yet
+                      </p>
                     </div>
                   )}
                 </div>
@@ -375,7 +383,8 @@ function OverviewDashboard() {
                         const total = Object.values(
                           metrics.currencyBreakdown
                         ).reduce((sum, val) => sum + val, 0);
-                        const percentage = total > 0 ? (amount / total) * 100 : 0;
+                        const percentage =
+                          total > 0 ? (amount / total) * 100 : 0;
 
                         return (
                           <div key={currency}>

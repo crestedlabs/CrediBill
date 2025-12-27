@@ -3,6 +3,11 @@
 import { useMutation, useQuery, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useApp } from "@/contexts/app-context";
+import {
+  useAppPermissions,
+  getPermissionMessage,
+} from "@/hooks/use-app-permissions";
+import { PermissionAwareSection } from "@/components/ui/permission-aware";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,6 +82,7 @@ const PROVIDER_INFO: Record<
 
 export default function SettingsPaymentProviders() {
   const { selectedApp } = useApp();
+  const { canManageSettings } = useAppPermissions();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<any>(null);
@@ -89,7 +95,9 @@ export default function SettingsPaymentProviders() {
   );
 
   // Delete mutation
-  const removeProvider = useMutation(api.paymentProviders.removePaymentProvider);
+  const removeProvider = useMutation(
+    api.paymentProviders.removePaymentProvider
+  );
 
   if (!selectedApp) {
     return (
@@ -120,51 +128,68 @@ export default function SettingsPaymentProviders() {
       </div>
 
       {/* Connected Providers */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-slate-900">
-            Connected Providers
-          </h3>
-          <Button onClick={() => setShowAddDialog(true)} size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Add Provider
-          </Button>
-        </div>
-
-        {!providers || providers.length === 0 ? (
-          <Card className="p-8 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="rounded-full bg-slate-100 p-4">
-                <CreditCard className="h-8 w-8 text-slate-400" />
-              </div>
-            </div>
-            <h3 className="text-lg font-medium text-slate-900">
-              No providers connected
+      <PermissionAwareSection
+        canEdit={canManageSettings}
+        message={getPermissionMessage(["owner", "admin"])}
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-slate-900">
+              Connected Providers
             </h3>
-            <p className="mt-2 text-sm text-slate-600 max-w-sm mx-auto">
-              Connect a payment provider to start collecting payments from your
-              customers.
-            </p>
-            <Button onClick={() => setShowAddDialog(true)} className="mt-4">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Your First Provider
-            </Button>
-          </Card>
-        ) : (
-          <div className="grid gap-4">
-            {providers.map((provider: any) => (
-              <ProviderCard
-                key={provider._id}
-                provider={provider}
-                onDelete={() => {
-                  setSelectedProvider(provider);
-                  setShowDeleteDialog(true);
-                }}
-              />
-            ))}
+            {canManageSettings && (
+              <Button
+                onClick={() => setShowAddDialog(true)}
+                size="sm"
+                disabled={!canManageSettings}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Provider
+              </Button>
+            )}
           </div>
-        )}
-      </div>
+
+          {!providers || providers.length === 0 ? (
+            <Card className="p-8 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="rounded-full bg-slate-100 p-4">
+                  <CreditCard className="h-8 w-8 text-slate-400" />
+                </div>
+              </div>
+              <h3 className="text-lg font-medium text-slate-900">
+                No providers connected
+              </h3>
+              <p className="mt-2 text-sm text-slate-600 max-w-sm mx-auto">
+                Connect a payment provider to start collecting payments from
+                your customers.
+              </p>
+              {canManageSettings && (
+                <Button
+                  onClick={() => setShowAddDialog(true)}
+                  className="mt-4"
+                  disabled={!canManageSettings}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Your First Provider
+                </Button>
+              )}
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {providers.map((provider: any) => (
+                <ProviderCard
+                  key={provider._id}
+                  provider={provider}
+                  onDelete={() => {
+                    setSelectedProvider(provider);
+                    setShowDeleteDialog(true);
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </PermissionAwareSection>
 
       {/* Add Provider Dialog */}
       {showAddDialog && (
@@ -190,7 +215,7 @@ export default function SettingsPaymentProviders() {
               disabled={isDeleting}
               onClick={async () => {
                 if (!selectedProvider) return;
-                
+
                 setIsDeleting(true);
                 try {
                   await removeProvider({
@@ -201,7 +226,9 @@ export default function SettingsPaymentProviders() {
                   setSelectedProvider(null);
                 } catch (error: any) {
                   const userFriendlyMessage = parseConvexError(error);
-                  toast.error(userFriendlyMessage || "Failed to remove provider");
+                  toast.error(
+                    userFriendlyMessage || "Failed to remove provider"
+                  );
                 } finally {
                   setIsDeleting(false);
                 }
@@ -412,7 +439,9 @@ function AddProviderDialog({
       <Card className="w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Fixed Header */}
         <div className="border-b border-slate-200 p-6 pb-4">
-          <h2 className="text-xl font-semibold text-slate-900">Add Payment Provider</h2>
+          <h2 className="text-xl font-semibold text-slate-900">
+            Add Payment Provider
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
             Connect a payment provider to start collecting payments
           </p>
@@ -429,7 +458,11 @@ function AddProviderDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(PROVIDER_INFO).map(([key, info]) => (
-                    <SelectItem key={key} value={key} disabled={info.comingSoon}>
+                    <SelectItem
+                      key={key}
+                      value={key}
+                      disabled={info.comingSoon}
+                    >
                       <div className="flex items-center gap-2">
                         <span>{info.logo}</span>
                         <span>{info.name}</span>
@@ -494,8 +527,8 @@ function AddProviderDialog({
               <p className="text-sm text-amber-900">
                 <span className="font-semibold">Security Note:</span> Your
                 credentials are encrypted and stored securely. We never see your
-                money - payments go directly to your {selectedProviderInfo?.name}{" "}
-                account.
+                money - payments go directly to your{" "}
+                {selectedProviderInfo?.name} account.
               </p>
             </div>
           </div>

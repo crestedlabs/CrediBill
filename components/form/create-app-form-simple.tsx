@@ -67,11 +67,8 @@ export function CreateAppFormSimple() {
         description: formData.description,
         organizationId: formData.organizationId as Id<"organizations">,
         defaultCurrency: formData.defaultCurrency,
-        timezone: formData.timezone,
         language: formData.language,
-        defaultPaymentMethod: formData.defaultPaymentMethod,
         retryPolicy: formData.retryPolicy,
-        defaultTrialLength: formData.defaultTrialLength,
         gracePeriod: formData.gracePeriod,
       });
 
@@ -191,22 +188,8 @@ export function CreateAppFormSimple() {
             />
 
             <FormSelectField
-              label="Timezone"
-              value={formData.timezone}
-              onChange={(value) =>
-                setFormData((prev) => ({ ...prev, timezone: value as any }))
-              }
-              options={[
-                { value: "eat", label: "East Africa Time (GMT+3)" },
-                { value: "cat", label: "Central Africa Time (GMT+2)" },
-                { value: "wat", label: "West Africa Time (GMT+1)" },
-              ]}
-              required
-            />
-
-            <FormSelectField
               label="Language"
-              value={formData.language}
+              value={formData.language || "en"}
               onChange={(value) =>
                 setFormData((prev) => ({ ...prev, language: value as any }))
               }
@@ -241,25 +224,8 @@ export function CreateAppFormSimple() {
         <CardContent className="pt-0">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormSelectField
-              label="Default Payment Method"
-              value={formData.defaultPaymentMethod}
-              onChange={(value) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  defaultPaymentMethod: value as any,
-                }))
-              }
-              options={[
-                { value: "momo", label: "📱 Mobile Money" },
-                { value: "credit-card", label: "💳 Credit Card" },
-                { value: "bank", label: "🏦 Bank Transfer" },
-              ]}
-              required
-            />
-
-            <FormSelectField
               label="Payment Failure Retry Policy"
-              value={formData.retryPolicy}
+              value={formData.retryPolicy || "automatic"}
               onChange={(value) =>
                 setFormData((prev) => ({ ...prev, retryPolicy: value as any }))
               }
@@ -268,18 +234,6 @@ export function CreateAppFormSimple() {
                 { value: "manual", label: "Manual Review" },
                 { value: "none", label: "No Retries" },
               ]}
-              required
-            />
-
-            <FormNumberField
-              label="Default Trial Period (days)"
-              value={formData.defaultTrialLength}
-              onChange={(value) =>
-                setFormData((prev) => ({ ...prev, defaultTrialLength: value }))
-              }
-              min={0}
-              max={365}
-              helpText="How long new subscriptions can be trialed for free"
               required
             />
 

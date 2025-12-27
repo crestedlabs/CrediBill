@@ -23,11 +23,17 @@ import { CreditCard, Save, RefreshCw, Clock, Loader2 } from "lucide-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useApp } from "@/contexts/app-context";
+import {
+  useAppPermissions,
+  getPermissionMessage,
+} from "@/hooks/use-app-permissions";
+import { PermissionAwareField } from "@/components/ui/permission-aware";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
 export default function SettingsBilling() {
   const { selectedApp } = useApp();
+  const { canManageSettings } = useAppPermissions();
   const [isSaving, setIsSaving] = useState(false);
 
   const appSettings = useQuery(
@@ -124,57 +130,72 @@ export default function SettingsBilling() {
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Default Payment Method
-              </label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="momo">📱 Mobile Money</SelectItem>
-                    <SelectItem value="credit-card">💳 Credit Card</SelectItem>
-                    <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+          <PermissionAwareField
+            canEdit={canManageSettings}
+            message={getPermissionMessage(["owner", "admin"])}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Default Payment Method
+                </label>
+                <Select
+                  value={paymentMethod}
+                  onValueChange={setPaymentMethod}
+                  disabled={!canManageSettings}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="momo">📱 Mobile Money</SelectItem>
+                      <SelectItem value="credit-card">
+                        💳 Credit Card
+                      </SelectItem>
+                      <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Payment Retry Policy
+                </label>
+                <Select
+                  value={retryPolicy}
+                  onValueChange={setRetryPolicy}
+                  disabled={!canManageSettings}
+                >
+                  <SelectTrigger className="h-10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value="automatic">
+                        <div className="flex items-center gap-2">
+                          <RefreshCw className="h-3 w-3 text-green-500" />
+                          Automatic Retries
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="manual">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 text-amber-500" />
+                          Manual Review
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="none">
+                        <div className="flex items-center gap-2">
+                          <span className="h-3 w-3 rounded-full bg-red-500" />
+                          No Retries
+                        </div>
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">
-                Payment Retry Policy
-              </label>
-              <Select value={retryPolicy} onValueChange={setRetryPolicy}>
-                <SelectTrigger className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="automatic">
-                      <div className="flex items-center gap-2">
-                        <RefreshCw className="h-3 w-3 text-green-500" />
-                        Automatic Retries
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="manual">
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-3 w-3 text-amber-500" />
-                        Manual Review
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="none">
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full bg-red-500" />
-                        No Retries
-                      </div>
-                    </SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          </PermissionAwareField>
         </CardContent>
       </Card>
 
@@ -196,29 +217,37 @@ export default function SettingsBilling() {
           </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="max-w-xs space-y-2">
-            <label className="text-sm font-medium text-slate-700">
-              Grace Period
-            </label>
-            <div className="relative">
-              <Input
-                type="number"
-                placeholder="3"
-                value={gracePeriod}
-                onChange={(e) => setGracePeriod(parseInt(e.target.value) || 0)}
-                min={0}
-                max={30}
-                className="h-10 pr-12"
-              />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                days
-              </span>
+          <PermissionAwareField
+            canEdit={canManageSettings}
+            message={getPermissionMessage(["owner", "admin"])}
+          >
+            <div className="max-w-xs space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                Grace Period
+              </label>
+              <div className="relative">
+                <Input
+                  type="number"
+                  placeholder="3"
+                  value={gracePeriod}
+                  onChange={(e) =>
+                    setGracePeriod(parseInt(e.target.value) || 0)
+                  }
+                  min={0}
+                  max={30}
+                  className="h-10 pr-12"
+                  disabled={!canManageSettings}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
+                  days
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Days to wait before suspending service after failed payment
+                (0-30 days)
+              </p>
             </div>
-            <p className="text-xs text-slate-500">
-              Days to wait before suspending service after failed payment (0-30
-              days)
-            </p>
-          </div>
+          </PermissionAwareField>
         </CardContent>
       </Card>
 
@@ -227,7 +256,7 @@ export default function SettingsBilling() {
         <Button
           className="h-10 px-6"
           onClick={handleSave}
-          disabled={!hasChanges || isSaving}
+          disabled={!hasChanges || isSaving || !canManageSettings}
         >
           {isSaving ? (
             <>

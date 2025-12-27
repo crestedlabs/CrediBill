@@ -116,19 +116,19 @@ export const createApp = mutation({
       v.literal("rwf"),
       v.literal("usd")
     ),
-    timezone: v.union(v.literal("eat"), v.literal("cat"), v.literal("wat")),
+    timezone: v.optional(
+      v.union(v.literal("eat"), v.literal("cat"), v.literal("wat"))
+    ), // DEPRECATED: May return when timezone-aware billing is implemented
     language: v.union(v.literal("en"), v.literal("sw"), v.literal("fr")),
-    defaultPaymentMethod: v.union(
-      v.literal("momo"),
-      v.literal("credit-card"),
-      v.literal("bank")
-    ),
+    defaultPaymentMethod: v.optional(
+      v.union(v.literal("momo"), v.literal("credit-card"), v.literal("bank"))
+    ), // DEPRECATED: Use payment provider configuration
     retryPolicy: v.union(
       v.literal("automatic"),
       v.literal("manual"),
       v.literal("none")
     ),
-    defaultTrialLength: v.number(),
+    defaultTrialLength: v.optional(v.number()), // DEPRECATED: Use plan-level trialDays
     gracePeriod: v.number(),
   },
   handler: async (ctx, args) => {
@@ -155,7 +155,10 @@ export const createApp = mutation({
     }
 
     // Validate numbers
-    if (args.defaultTrialLength < 0 || args.defaultTrialLength > 365) {
+    if (
+      args.defaultTrialLength &&
+      (args.defaultTrialLength < 0 || args.defaultTrialLength > 365)
+    ) {
       throw new Error("Trial length must be between 0 and 365 days");
     }
 
@@ -171,11 +174,11 @@ export const createApp = mutation({
       status: "active",
       mode: "test", // Start in test mode by default
       defaultCurrency: args.defaultCurrency,
-      timezone: args.timezone,
+      timezone: args.timezone || "eat", // DEPRECATED: fallback to EAT for backward compatibility
       language: args.language,
-      defaultPaymentMethod: args.defaultPaymentMethod,
+      defaultPaymentMethod: args.defaultPaymentMethod || "momo", // DEPRECATED: fallback for backward compatibility
       retryPolicy: args.retryPolicy,
-      defaultTrialLength: args.defaultTrialLength,
+      defaultTrialLength: args.defaultTrialLength || undefined, // DEPRECATED
       gracePeriod: args.gracePeriod,
     });
 
@@ -297,6 +300,69 @@ export const updateAppSettings = mutation({
     return {
       success: true,
       message: "Settings updated successfully",
+    };
+  },
+});
+
+// Update app name
+export const updateAppName = mutation({
+  args: {
+    appId: v.id("apps"),
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Validate name
+    if (args.name.length < 3) {
+      throw new Error("App name must be at least 3 characters");
+    }
+    if (args.name.length > 100) {
+      throw new Error("App name must be less than 100 characters");
+    }
+
+    // Get the app
+    const app = await ctx.db.get(args.appId);
+    if (!app) throw new Error("App not found");
+
+    // Verify user is owner or admin of the organization
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error(
+        "Access denied: You are not a member of this organization"
+      );
+    }
+
+    if (membership.role !== "owner" && membership.role !== "admin") {
+      throw new Error("Only owners and admins can rename apps");
+    }
+
+    // Check if another app with the same name exists in this organization
+    const existingApp = await ctx.db
+      .query("apps")
+      .withIndex("by_org", (q) => q.eq("organizationId", app.organizationId))
+      .filter((q) => q.eq(q.field("name"), args.name))
+      .first();
+
+    if (existingApp && existingApp._id !== args.appId) {
+      throw new Error(
+        "An app with this name already exists in your organization"
+      );
+    }
+
+    // Update the app name
+    await ctx.db.patch(args.appId, { name: args.name });
+
+    return {
+      success: true,
+      message: "App name updated successfully",
     };
   },
 });

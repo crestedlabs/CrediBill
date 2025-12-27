@@ -29,22 +29,47 @@ export function OrganizationProvider({
   children: React.ReactNode;
 }) {
   const { isLoaded, isSignedIn } = useAuth();
-  
+
   // Only query organizations when Clerk auth is ready and user is signed in
   const organizations = useQuery(
     api.organizations.getUserOrganizations,
     isLoaded && isSignedIn ? {} : "skip"
   );
-  
-  const [selectedOrgId, setSelectedOrgId] =
-    useState<Id<"organizations"> | null>(null);
 
-  // Auto-select first organization when data loads
-  useEffect(() => {
-    if (organizations && organizations.length > 0 && !selectedOrgId) {
-      if (organizations[0]._id) {
-        setSelectedOrgId(organizations[0]._id);
+  // Load selected org from localStorage on mount
+  const [selectedOrgId, setSelectedOrgId] =
+    useState<Id<"organizations"> | null>(() => {
+      if (typeof window !== "undefined") {
+        const saved = localStorage.getItem("selectedOrgId");
+        return saved as Id<"organizations"> | null;
       }
+      return null;
+    });
+
+  // Save to localStorage when selectedOrgId changes
+  useEffect(() => {
+    if (selectedOrgId) {
+      localStorage.setItem("selectedOrgId", selectedOrgId);
+    }
+  }, [selectedOrgId]);
+
+  // Validate saved org ID and auto-select if needed
+  useEffect(() => {
+    if (organizations && organizations.length > 0) {
+      // Check if saved org ID is still valid (user still has access)
+      const isValidOrg = organizations.some((org) => org._id === selectedOrgId);
+
+      if (!isValidOrg) {
+        // Saved org is invalid (permission revoked or doesn't exist)
+        // Clear localStorage and select first available org
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("selectedOrgId");
+        }
+        if (organizations[0]._id) {
+          setSelectedOrgId(organizations[0]._id);
+        }
+      }
+      // If valid, keep the saved selection
     }
   }, [organizations, selectedOrgId]);
 

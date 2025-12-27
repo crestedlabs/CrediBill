@@ -2,6 +2,30 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { getCurrentUser } from "./users";
 
+// Simple currency conversion rates (approximate, for display purposes)
+// In production, use a real exchange rate API
+const CURRENCY_TO_USD_RATES: Record<string, number> = {
+  USD: 1,
+  UGX: 0.00027, // 1 UGX = 0.00027 USD
+  KES: 0.0077, // 1 KES = 0.0077 USD
+  TZS: 0.00043, // 1 TZS = 0.00043 USD
+  RWF: 0.00079, // 1 RWF = 0.00079 USD
+};
+
+// Convert amount from one currency to another
+function convertCurrency(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string
+): number {
+  const fromRate = CURRENCY_TO_USD_RATES[fromCurrency.toUpperCase()] || 1;
+  const toRate = CURRENCY_TO_USD_RATES[toCurrency.toUpperCase()] || 1;
+
+  // Convert to USD first, then to target currency
+  const amountInUSD = amount * fromRate;
+  return amountInUSD / toRate;
+}
+
 // Get comprehensive overview metrics for the dashboard
 export const getOverviewMetrics = query({
   args: {
@@ -11,25 +35,43 @@ export const getOverviewMetrics = query({
     const user = await getCurrentUser(ctx);
     if (!user) throw new Error("Unauthorized");
 
-    // Get user's organization
-    const membership = await ctx.db
-      .query("organizationMembers")
-      .withIndex("by_user", (q) => q.eq("userId", user._id))
-      .first();
-
-    if (!membership) throw new Error("No organization found");
-
-    const organizationId = membership.organizationId;
-
     // Filter by app if specified, otherwise use all apps
     let apps;
+    let organizationId: any;
+
     if (args.appId) {
       const app = await ctx.db.get(args.appId);
-      if (!app || app.organizationId !== organizationId) {
-        throw new Error("App not found or unauthorized");
+      if (!app) {
+        throw new Error("App not found");
       }
+
+      // Verify user has access to this app's organization
+      const membership = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_org_user", (q) =>
+          q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        )
+        .unique();
+
+      if (!membership) {
+        throw new Error(
+          "Access denied: You are not a member of this organization"
+        );
+      }
+
       apps = [app];
+      organizationId = app.organizationId;
     } else {
+      // Get first organization membership
+      const membership = await ctx.db
+        .query("organizationMembers")
+        .withIndex("by_user", (q) => q.eq("userId", user._id))
+        .first();
+
+      if (!membership) throw new Error("No organization found");
+
+      organizationId = membership.organizationId;
+
       apps = await ctx.db
         .query("apps")
         .withIndex("by_org", (q) => q.eq("organizationId", organizationId))
@@ -38,13 +80,14 @@ export const getOverviewMetrics = query({
 
     const appIds = apps.map((app) => app._id);
 
+    // Get the default currency for the app (for MRR conversion)
+    const defaultCurrency = apps[0]?.defaultCurrency.toUpperCase() || "USD";
+
     // Get all subscriptions for these apps
     const allSubscriptions = await ctx.db
       .query("subscriptions")
       .collect()
-      .then((subs) =>
-        subs.filter((sub) => appIds.includes(sub.appId))
-      );
+      .then((subs) => subs.filter((sub) => appIds.includes(sub.appId)));
 
     // Calculate key metrics
     const activeSubscriptions = allSubscriptions.filter(
@@ -69,7 +112,10 @@ export const getOverviewMetrics = query({
     const currencyBreakdown: Record<string, number> = {};
 
     for (const subscription of allSubscriptions) {
-      if (subscription.status !== "active" && subscription.status !== "trialing") {
+      if (
+        subscription.status !== "active" &&
+        subscription.status !== "trialing"
+      ) {
         continue;
       }
 
@@ -92,7 +138,7 @@ export const getOverviewMetrics = query({
 
       totalRevenue += subscriptionRevenue;
 
-      // Calculate MRR based on plan interval
+      // Calculate MRR based on plan interval (convert to app's default currency)
       if (plan.baseAmount && subscription.status === "active") {
         let monthlyAmount = 0;
         switch (plan.interval) {
@@ -107,9 +153,16 @@ export const getOverviewMetrics = query({
             break;
         }
 
-        mrr += monthlyAmount;
+        // Convert to default currency
+        const convertedAmount = convertCurrency(
+          monthlyAmount,
+          plan.currency,
+          defaultCurrency
+        );
 
-        // Track by currency
+        mrr += convertedAmount;
+
+        // Track by original currency for breakdown
         const currency = plan.currency;
         currencyBreakdown[currency] =
           (currencyBreakdown[currency] || 0) + monthlyAmount;
@@ -141,8 +194,7 @@ export const getOverviewMetrics = query({
       .collect()
       .then((plans) =>
         plans.filter(
-          (plan) =>
-            appIds.includes(plan.appId) && plan.status === "active"
+          (plan) => appIds.includes(plan.appId) && plan.status === "active"
         )
       );
 
@@ -208,16 +260,17 @@ export const getOverviewMetrics = query({
       pastDueSubscriptions,
       canceledSubscriptions,
       trialsExpiringSoon,
-      
-      // Revenue metrics
+
+      // Revenue metrics (MRR in app's default currency)
       mrr: Math.round(mrr),
+      mrrCurrency: defaultCurrency,
       totalRevenue: Math.round(totalRevenue),
       currencyBreakdown,
-      
+
       // Performance
       planPerformance: planPerformance.slice(0, 5), // Top 5 plans
       churnRate,
-      
+
       // Totals
       totalSubscriptions: allSubscriptions.length,
       totalCustomers: new Set(allSubscriptions.map((sub) => sub.customerId))

@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { Authenticated, Unauthenticated } from "convex/react";
 import { SignInButton } from "@clerk/nextjs";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useOrganization } from "@/contexts/organization-context";
 
@@ -17,8 +18,21 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MoreVertical, Plus, Edit, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
+import { parseConvexError } from "@/lib/error-utils";
+import type { Id } from "@/convex/_generated/dataModel";
 
 export default function AppsContent() {
   return (
@@ -179,7 +193,7 @@ function AppsManager() {
                             )}
                           </td>
                           <td className="px-4 py-4 text-right">
-                            <AppActionMenu />
+                            <AppActionMenu appId={app._id} appName={app.name} />
                           </td>
                         </tr>
                       ))}
@@ -230,7 +244,7 @@ function AppsManager() {
                       </div>
                     </div>
 
-                    <AppActionMenu />
+                    <AppActionMenu appId={app._id} appName={app.name} />
                   </div>
                 </CardContent>
               </Card>
@@ -242,25 +256,84 @@ function AppsManager() {
   );
 }
 
-function AppActionMenu() {
+function AppActionMenu({
+  appId,
+  appName,
+}: {
+  appId: Id<"apps">;
+  appName: string;
+}) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const deleteApp = useMutation(api.apps.deleteApp);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteApp({ appId });
+      toast.success(`${appName} has been deleted successfully`);
+      setShowDeleteDialog(false);
+    } catch (error) {
+      toast.error(parseConvexError(error));
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-          <MoreVertical className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuItem>
-          <Edit className="mr-2 h-4 w-4" />
-          Edit
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem className="text-red-600">
-          <Trash2 className="mr-2 h-4 w-4" />
-          Delete
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem>
+            <Edit className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-red-600"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Application</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{appName}</strong>? This
+              will permanently delete the app and all associated data including:
+              <ul className="mt-2 space-y-1 list-disc list-inside text-sm">
+                <li>All plans and subscriptions</li>
+                <li>Customer records</li>
+                <li>Invoices and payment history</li>
+                <li>API keys and webhooks</li>
+              </ul>
+              <p className="mt-2 font-semibold text-red-600">
+                This action cannot be undone.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? "Deleting..." : "Delete App"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

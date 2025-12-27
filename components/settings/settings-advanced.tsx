@@ -4,6 +4,10 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useApp } from "@/contexts/app-context";
+import {
+  useAppPermissions,
+  getPermissionMessage,
+} from "@/hooks/use-app-permissions";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -26,13 +30,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Settings, AlertTriangle, Save } from "lucide-react";
+import { Settings, AlertTriangle, Save, Lock, Info } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { parseConvexError } from "@/lib/error-utils";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function SettingsAdvanced() {
   const { selectedApp } = useApp();
+  const { canManageApp } = useAppPermissions();
   const router = useRouter();
   const settings = useQuery(
     api.apps.getAppSettings,
@@ -133,19 +139,34 @@ export default function SettingsAdvanced() {
   return (
     <>
       <TabsContent value="advanced" className="space-y-8 m-0">
+        {/* Coming Soon Banner */}
+        <Alert className="border-amber-200 bg-amber-50">
+          <Info className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-900">
+            <span className="font-semibold">
+              Advanced features are coming soon!
+            </span>{" "}
+            These settings are currently in development and not yet active in
+            the billing system. Enable them now to prepare your configuration
+            for when they go live.
+          </AlertDescription>
+        </Alert>
+
         {/* Advanced Features */}
-        <Card className="border-0 shadow-sm bg-white">
+        <Card className="border-0 shadow-sm bg-white relative">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-purple-50 rounded-lg">
                 <Settings className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <CardTitle className="text-lg font-semibold">
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
                   Advanced Features
+                  <Lock className="h-4 w-4 text-slate-400" />
                 </CardTitle>
                 <CardDescription className="text-slate-500">
-                  Configure advanced billing and subscription options
+                  Configure advanced billing and subscription options (Coming
+                  Soon)
                 </CardDescription>
               </div>
             </div>
@@ -157,12 +178,15 @@ export default function SettingsAdvanced() {
               </div>
             ) : (
               <>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30">
-                    <div className="space-y-1">
-                      <p className="font-medium text-slate-900">
-                        Allow Plan Downgrades
-                      </p>
+                <div className="space-y-4 opacity-60">
+                  <div className="group flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30 hover:bg-slate-50/50 transition-all cursor-not-allowed relative">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">
+                          Allow Plan Downgrades
+                        </p>
+                        <Lock className="h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                       <p className="text-sm text-slate-500">
                         Permit customers to switch to lower-tier plans
                       </p>
@@ -170,15 +194,18 @@ export default function SettingsAdvanced() {
                     <Switch
                       checked={allowPlanDowngrades}
                       onCheckedChange={setAllowPlanDowngrades}
-                      disabled={isSaving}
+                      disabled={true}
                     />
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30">
-                    <div className="space-y-1">
-                      <p className="font-medium text-slate-900">
-                        Require Billing Address
-                      </p>
+                  <div className="group flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30 hover:bg-slate-50/50 transition-all cursor-not-allowed relative">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">
+                          Require Billing Address
+                        </p>
+                        <Lock className="h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                       <p className="text-sm text-slate-500">
                         Request address information on checkout forms
                       </p>
@@ -186,15 +213,18 @@ export default function SettingsAdvanced() {
                     <Switch
                       checked={requireBillingAddress}
                       onCheckedChange={setRequireBillingAddress}
-                      disabled={isSaving}
+                      disabled={true}
                     />
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30">
-                    <div className="space-y-1">
-                      <p className="font-medium text-slate-900">
-                        Proration on Plan Changes
-                      </p>
+                  <div className="group flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30 hover:bg-slate-50/50 transition-all cursor-not-allowed relative">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">
+                          Proration on Plan Changes
+                        </p>
+                        <Lock className="h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                       <p className="text-sm text-slate-500">
                         Automatically calculate prorated charges for upgrades
                       </p>
@@ -202,15 +232,18 @@ export default function SettingsAdvanced() {
                     <Switch
                       checked={enableProration}
                       onCheckedChange={setEnableProration}
-                      disabled={isSaving}
+                      disabled={true}
                     />
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30">
-                    <div className="space-y-1">
-                      <p className="font-medium text-slate-900">
-                        Auto-suspend Failed Payments
-                      </p>
+                  <div className="group flex items-center justify-between p-4 rounded-lg border border-slate-100 bg-slate-50/30 hover:bg-slate-50/50 transition-all cursor-not-allowed relative">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-slate-900">
+                          Auto-suspend Failed Payments
+                        </p>
+                        <Lock className="h-3.5 w-3.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                       <p className="text-sm text-slate-500">
                         Automatically suspend access after payment failures
                       </p>
@@ -218,13 +251,13 @@ export default function SettingsAdvanced() {
                     <Switch
                       checked={autoSuspendOnFailedPayment}
                       onCheckedChange={setAutoSuspendOnFailedPayment}
-                      disabled={isSaving}
+                      disabled={true}
                     />
                   </div>
                 </div>
 
-                {/* Save Button */}
-                {hasChanges && (
+                {/* Save Button - Hidden as features are disabled */}
+                {/* {hasChanges && (
                   <div className="mt-6 pt-4 border-t flex items-center justify-between">
                     <p className="text-sm text-slate-600">
                       You have unsaved changes
@@ -238,7 +271,7 @@ export default function SettingsAdvanced() {
                       {isSaving ? "Saving..." : "Save Changes"}
                     </Button>
                   </div>
-                )}
+                )} */}
               </>
             )}
           </CardContent>
@@ -262,7 +295,16 @@ export default function SettingsAdvanced() {
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="p-4 rounded-lg border border-red-200 bg-red-50/50">
+            {!canManageApp && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                <p className="text-sm text-amber-900 font-medium">
+                  {getPermissionMessage(["owner", "admin"])}
+                </p>
+              </div>
+            )}
+            <div
+              className={`p-4 rounded-lg border border-red-200 bg-red-50/50 ${!canManageApp ? "opacity-60 pointer-events-none" : ""}`}
+            >
               <div className="space-y-3">
                 <div>
                   <p className="font-medium text-red-900">Delete Application</p>
@@ -279,6 +321,7 @@ export default function SettingsAdvanced() {
                   variant="destructive"
                   className="h-10"
                   onClick={() => setShowDeleteDialog(true)}
+                  disabled={!canManageApp}
                 >
                   <AlertTriangle className="mr-2 h-4 w-4" />
                   Delete App
