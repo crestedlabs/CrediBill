@@ -233,6 +233,49 @@ export const revokeApiKey = mutation({
   },
 });
 
+// Hard delete an API key (permanently removes from database)
+export const deleteApiKey = mutation({
+  args: {
+    apiKeyId: v.id("apiKeys"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      throw new Error("Unauthorized");
+    }
+
+    // Get API key
+    const apiKey = await ctx.db.get(args.apiKeyId);
+    if (!apiKey) {
+      throw new Error("API key not found");
+    }
+
+    // Check if user is owner or admin
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", apiKey.organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error("You are not a member of this organization");
+    }
+
+    if (membership.role !== "owner" && membership.role !== "admin") {
+      throw new Error("Only owners and admins can delete API keys");
+    }
+
+    // Permanently delete the key from database
+    await ctx.db.delete(args.apiKeyId);
+
+    return {
+      success: true,
+      message: "API key deleted successfully",
+    };
+  },
+});
+
 // Update API key name
 export const updateApiKeyName = mutation({
   args: {

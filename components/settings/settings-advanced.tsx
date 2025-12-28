@@ -35,6 +35,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { parseConvexError } from "@/lib/error-utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SettingsApiKeysSection } from "@/components/settings/settings-api-keys-section";
 
 export default function SettingsAdvanced() {
   const { selectedApp } = useApp();
@@ -139,6 +140,9 @@ export default function SettingsAdvanced() {
   return (
     <>
       <TabsContent value="advanced" className="space-y-8 m-0">
+        {/* API Keys Section */}
+        {selectedApp && <SettingsApiKeysSection appId={selectedApp._id} />}
+
         {/* Coming Soon Banner */}
         <Alert className="border-amber-200 bg-amber-50">
           <Info className="h-4 w-4 text-amber-600" />

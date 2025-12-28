@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { CreateCustomerDialog } from "@/components/customers/create-customer-dialog";
 import { SubscribeCustomerDialog } from "@/components/subscriptions/subscribe-customer-dialog";
+import { ChangeSubscriptionDialog } from "@/components/subscriptions/change-subscription-dialog";
 import { CustomerFilters } from "@/components/customers/customer-filters";
 import { CustomersSkeleton } from "@/components/customers/customers-skeleton";
 import Link from "next/link";
@@ -45,6 +46,7 @@ import {
   Trash2,
   Search,
   PackageOpen,
+  RotateCw,
 } from "lucide-react";
 
 const statusColors: Record<string, { badge: string; bg: string }> = {
@@ -230,9 +232,6 @@ function CustomersManager() {
                           Email
                         </th>
                         <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3 hidden md:table-cell">
-                          Subscriptions
-                        </th>
                         <th className="px-4 py-3 hidden lg:table-cell">
                           Joined
                         </th>
@@ -270,12 +269,6 @@ function CustomersManager() {
                                 <p className="text-xs text-slate-500 sm:hidden">
                                   {customer.email}
                                 </p>
-                                {customer.subscriptionCount > 0 && (
-                                  <p className="text-xs text-slate-500 md:hidden">
-                                    {customer.activeSubscriptionCount}/
-                                    {customer.subscriptionCount} active
-                                  </p>
-                                )}
                               </div>
                             </td>
                             <td className="px-4 py-4 text-slate-600 hidden sm:table-cell text-xs">
@@ -287,12 +280,6 @@ function CustomersManager() {
                                   status.slice(1)}
                               </Badge>
                             </td>
-                            <td className="px-4 py-4 text-slate-600 hidden md:table-cell text-xs">
-                              <span className="font-medium">
-                                {customer.activeSubscriptionCount}
-                              </span>
-                              /{customer.subscriptionCount}
-                            </td>
                             <td className="px-4 py-4 text-xs text-slate-600 hidden lg:table-cell">
                               {joinDate}
                             </td>
@@ -301,6 +288,7 @@ function CustomersManager() {
                                 customerId={customer._id}
                                 customerEmail={customer.email}
                                 appId={selectedApp._id}
+                                hasActiveSubscription={customer.activeSubscriptionCount > 0}
                               />
                             </td>
                           </tr>
@@ -341,12 +329,15 @@ function CustomerActionMenu({
   customerId,
   customerEmail,
   appId,
+  hasActiveSubscription,
 }: {
   customerId: string;
   customerEmail: string;
   appId: string;
+  hasActiveSubscription: boolean;
 }) {
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false);
+  const [showChangeSubscriptionDialog, setShowChangeSubscriptionDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -382,10 +373,17 @@ function CustomerActionMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={() => setShowSubscribeDialog(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Subscribe to plan
-          </DropdownMenuItem>
+          {hasActiveSubscription ? (
+            <DropdownMenuItem onClick={() => setShowChangeSubscriptionDialog(true)}>
+              <RotateCw className="mr-2 h-4 w-4" />
+              Change Subscription
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={() => setShowSubscribeDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Subscribe to plan
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem>
             <Eye className="mr-2 h-4 w-4" />
@@ -412,6 +410,17 @@ function CustomerActionMenu({
         customerEmail={customerEmail}
         open={showSubscribeDialog}
         onOpenChange={setShowSubscribeDialog}
+        onSuccess={() => {
+          // Dialog auto-closes, data auto-refreshes
+        }}
+      />
+
+      <ChangeSubscriptionDialog
+        appId={appId as any}
+        customerId={customerId as any}
+        customerEmail={customerEmail}
+        open={showChangeSubscriptionDialog}
+        onOpenChange={setShowChangeSubscriptionDialog}
         onSuccess={() => {
           // Dialog auto-closes, data auto-refreshes
         }}

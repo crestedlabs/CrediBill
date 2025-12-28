@@ -2,6 +2,45 @@ import { defineTable, defineSchema } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  // Provider Catalog - Master list of available payment providers
+  // This is seeded data and rarely changes
+  providerCatalog: defineTable({
+    name: v.string(), // "flutterwave", "pawapay", "dpo", "pesapal"
+    displayName: v.string(), // "Flutterwave", "PawaPay", "DPO Group", "PesaPal"
+    description: v.string(),
+    logoUrl: v.optional(v.string()),
+    logoEmoji: v.string(), // Fallback emoji logo
+
+    // Capabilities
+    supportsRecurring: v.boolean(), // Can handle subscription billing
+    supportsWebhooks: v.boolean(), // Provides webhook notifications
+    supportsRefunds: v.boolean(), // Can process refunds
+
+    // Billing configuration
+    billingMode: v.union(
+      v.literal("auto"), // Automatic charge/retry
+      v.literal("manual") // Manual invoice payment
+    ),
+
+    // Geographic availability (ISO 3166-1 alpha-2 country codes)
+    regions: v.array(v.string()), // ["UG", "KE", "TZ", "RW", "NG", etc.]
+
+    // Payment methods supported
+    paymentMethods: v.array(v.string()), // ["mobile_money", "cards", "bank_transfer"]
+
+    // Status
+    isActive: v.boolean(), // Whether this provider is available for selection
+
+    // Documentation
+    documentationUrl: v.optional(v.string()),
+    signupUrl: v.optional(v.string()),
+
+    // Display order
+    sortOrder: v.number(), // For ordering in UI
+  })
+    .index("by_active", ["isActive"])
+    .index("by_name", ["name"]),
+
   //Organizations. Each User belongs to an organization
   organizations: defineTable({
     name: v.string(),
@@ -45,6 +84,10 @@ export default defineSchema({
     ),
     mode: v.optional(v.union(v.literal("live"), v.literal("test"))),
 
+    // Payment provider selection (IMMUTABLE - cannot be changed after creation)
+    // References the providerCatalog table
+    paymentProviderId: v.id("providerCatalog"),
+
     // App-specific settings (required with defaults)
     defaultCurrency: v.union(
       v.literal("ugx"),
@@ -73,7 +116,6 @@ export default defineSchema({
     ),
 
     // Billing settings (required with defaults)
-    defaultTrialLength: v.optional(v.number()), // DEPRECATED: Use plan-level trialDays instead
     gracePeriod: v.number(), // days, default 3
 
     // Advanced settings (optional with defaults)
@@ -81,17 +123,10 @@ export default defineSchema({
     requireBillingAddress: v.optional(v.boolean()), // default false
     enableProration: v.optional(v.boolean()), // default true
     autoSuspendOnFailedPayment: v.optional(v.boolean()), // default true
-
-    // Legacy fields (deprecated but kept for backward compatibility)
-    billingCycle: v.optional(
-      v.union(
-        v.literal("monthly"),
-        v.literal("quarterly"),
-        v.literal("annual"),
-        v.literal("one-time")
-      )
-    ),
-    supportsOneTimePayments: v.optional(v.boolean()),
+    
+    // Webhook configuration
+    webhookUrl: v.optional(v.string()),
+    webhookSecret: v.optional(v.string()),
   })
     .index("by_org", ["organizationId"])
     .index("by_status", ["status"]),
@@ -170,6 +205,28 @@ export default defineSchema({
     "periodStart",
     "periodEnd",
   ]),
+
+  // Webhook Deliveries (outgoing webhooks to clients)
+  webhookDeliveries: defineTable({
+    appId: v.id("apps"),
+    event: v.string(), // e.g., "subscription.created", "subscription.renewed"
+    payload: v.any(), // The webhook payload
+    url: v.string(), // Where it was sent
+    status: v.union(
+      v.literal("pending"),
+      v.literal("success"),
+      v.literal("failed")
+    ),
+    responseStatus: v.optional(v.number()), // HTTP status code
+    responseBody: v.optional(v.string()),
+    error: v.optional(v.string()),
+    attempts: v.number(), // Number of delivery attempts
+    lastAttemptAt: v.optional(v.number()),
+    nextRetryAt: v.optional(v.number()),
+  })
+    .index("by_app", ["appId"])
+    .index("by_status", ["status"])
+    .index("by_next_retry", ["nextRetryAt"]),
 
   // Subscriptions
   subscriptions: defineTable({
@@ -303,22 +360,13 @@ export default defineSchema({
     .index("by_org", ["organizationId"])
     .index("by_status", ["status"]),
 
-  // Payment Providers Table (Option 1: One provider per app)
-  // Each app connects their own payment provider account
-  // Money flows directly to app's account, not CrediBill
-  paymentProviders: defineTable({
+  // Payment Provider Credentials Table
+  // Stores API credentials for the app's selected payment provider
+  // NOTE: Provider selection (which provider) is immutable and stored in apps.paymentProviderId
+  // This table only stores the credentials (API keys) which can be updated
+  paymentProviderCredentials: defineTable({
     organizationId: v.id("organizations"),
-    appId: v.id("apps"),
-
-    // Provider type
-    provider: v.union(
-      v.literal("flutterwave"),
-      v.literal("pawapay"),
-      v.literal("pesapal"),
-      v.literal("dpo"),
-      v.literal("paystack"),
-      v.literal("stripe")
-    ),
+    appId: v.id("apps"), // One-to-one: Each app has exactly one credential record
 
     // Encrypted credentials (app's keys, not CrediBill's)
     credentials: v.object({
@@ -330,24 +378,9 @@ export default defineSchema({
 
     // Configuration
     environment: v.union(v.literal("test"), v.literal("live")),
-    isPrimary: v.boolean(), // Is this the primary provider for the app?
-    isActive: v.boolean(), // Can be temporarily disabled
 
     // Webhook configuration
     webhookSecret: v.optional(v.string()), // For verifying provider webhooks
-
-    // Supported payment methods for this provider
-    supportedMethods: v.array(
-      v.union(
-        v.literal("mobile_money_mtn"),
-        v.literal("mobile_money_airtel"),
-        v.literal("mobile_money_tigo"),
-        v.literal("mobile_money_vodacom"),
-        v.literal("card_visa"),
-        v.literal("card_mastercard"),
-        v.literal("bank_transfer")
-      )
-    ),
 
     // Connection status
     connectionStatus: v.union(
@@ -359,13 +392,13 @@ export default defineSchema({
     lastError: v.optional(v.string()),
 
     // Metadata
-    addedBy: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedBy: v.id("users"),
   })
     .index("by_app", ["appId"])
     .index("by_org", ["organizationId"])
-    .index("by_app_primary", ["appId", "isPrimary"])
-    .index("by_provider", ["provider"])
-    .index("by_status", ["isActive"]),
+    .index("by_status", ["connectionStatus"]),
 
   // Payment Transactions Table
   // Tracks every payment attempt (success or failure)
@@ -381,7 +414,8 @@ export default defineSchema({
     currency: v.string(),
 
     // Provider used for THIS transaction attempt
-    paymentProviderId: v.id("paymentProviders"),
+    // References the app's immutable provider choice
+    providerCatalogId: v.id("providerCatalog"),
     providerTransactionId: v.optional(v.string()), // Provider's reference
     providerReference: v.optional(v.string()), // Our reference sent to provider
 
@@ -441,7 +475,7 @@ export default defineSchema({
     .index("by_customer", ["customerId"])
     .index("by_subscription", ["subscriptionId"])
     .index("by_invoice", ["invoiceId"])
-    .index("by_provider", ["paymentProviderId"])
+    .index("by_provider", ["providerCatalogId"])
     .index("by_status", ["status"])
     .index("by_provider_txn_id", ["providerTransactionId"])
     .index("by_reference", ["providerReference"])

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { internal } from "./_generated/api";
 
 // Get plan statistics (subscribers and revenue)
 export const getPlanStats = query({
@@ -180,6 +181,18 @@ export const createPlan = mutation({
       mode: args.mode,
     });
 
+    // Send plan.created webhook
+    const plan = await ctx.db.get(planId);
+    if (plan) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: args.appId,
+        event: "plan.created",
+        payload: {
+          plan,
+        },
+      });
+    }
+
     return {
       success: true,
       planId,
@@ -323,6 +336,22 @@ export const updatePlan = mutation({
     // Update the plan
     await ctx.db.patch(args.planId, updates);
 
+    // Send plan.updated webhook if there were actual changes
+    if (Object.keys(updates).length > 0) {
+      const updatedPlan = await ctx.db.get(args.planId);
+      if (updatedPlan) {
+        await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+          appId: plan.appId,
+          event: "plan.updated",
+          payload: {
+            plan: updatedPlan,
+            changes: updates,
+            active_subscriptions: activeSubscriptions.length,
+          },
+        });
+      }
+    }
+
     return {
       success: true,
       message: "Plan updated successfully",
@@ -377,6 +406,16 @@ export const deletePlan = mutation({
 
     // Delete the plan
     await ctx.db.delete(args.planId);
+
+    // Send plan.archived webhook (we use "archived" instead of "deleted" to be less confusing)
+    await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+      appId: plan.appId,
+      event: "plan.archived",
+      payload: {
+        plan,
+        reason: "deleted",
+      },
+    });
 
     return { success: true };
   },

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query, internalMutation } from "./_generated/server";
 import { getCurrentUser } from "./users";
+import { internal } from "./_generated/api";
 
 // Generate a unique invoice number
 async function generateInvoiceNumber(
@@ -196,6 +197,21 @@ export const generateInvoice = mutation({
       },
     });
 
+    // Send invoice.created webhook
+    const invoice = await ctx.db.get(invoiceId);
+    if (invoice) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: subscription.appId,
+        event: "invoice.created",
+        payload: {
+          invoice,
+          customer,
+          subscription,
+          plan,
+        },
+      });
+    }
+
     return invoiceId;
   },
 });
@@ -360,6 +376,35 @@ export const updateInvoiceStatus = mutation({
     }
 
     await ctx.db.patch(args.invoiceId, updateData);
+
+    // Send appropriate webhook based on status change
+    const updatedInvoice = await ctx.db.get(args.invoiceId);
+    const customer = await ctx.db.get(invoice.customerId);
+    const subscription = invoice.subscriptionId ? await ctx.db.get(invoice.subscriptionId) : null;
+
+    if (updatedInvoice && customer) {
+      let eventType = "";
+      
+      if (args.status === "paid" && invoice.status !== "paid") {
+        eventType = "invoice.paid";
+      } else if (args.status === "overdue" && invoice.status !== "overdue") {
+        eventType = "invoice.overdue";
+      } else if (args.status === "void" && invoice.status !== "void") {
+        eventType = "invoice.voided";
+      }
+
+      if (eventType) {
+        await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+          appId: invoice.appId,
+          event: eventType,
+          payload: {
+            invoice: updatedInvoice,
+            customer,
+            ...(subscription && { subscription }),
+          },
+        });
+      }
+    }
 
     return { success: true };
   },

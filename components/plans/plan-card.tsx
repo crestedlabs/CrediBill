@@ -2,11 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Zap, TrendingUp, Sparkles, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Zap, TrendingUp, Sparkles, Users, Copy, Check } from "lucide-react";
 import { PlanActionMenu } from "./plan-action-menu";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
+import { useState } from "react";
 
 interface PlanCardProps {
   plan: any;
@@ -14,9 +16,20 @@ interface PlanCardProps {
 
 export function PlanCard({ plan }: PlanCardProps) {
   const isArchived = plan.status === "archived";
+  const [copied, setCopied] = useState(false);
   const stats = useQuery(api.plans.getPlanStats, {
     planId: plan._id as Id<"plans">,
   });
+
+  const handleCopyPlanId = async () => {
+    try {
+      await navigator.clipboard.writeText(plan._id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy plan ID:', err);
+    }
+  };
 
   // Format price based on pricing model
   const formatPrice = () => {
@@ -127,6 +140,29 @@ export function PlanCard({ plan }: PlanCardProps) {
             {plan.description}
           </p>
         )}
+
+        {/* Plan ID Copy Button */}
+        <div className="mt-3 flex items-center justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleCopyPlanId}
+            className="h-8 px-3 text-xs gap-2"
+            title="Copy Plan ID"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3.5 w-3.5 text-green-600" />
+                <span className="text-green-600">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3.5 w-3.5" />
+                <span>Copy Plan ID</span>
+              </>
+            )}
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent className="pt-3 mt-auto">

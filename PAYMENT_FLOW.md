@@ -1,370 +1,340 @@
-# Payment Flow Documentation
+# Payment Flow & Webhook Architecture
 
-## Overview
+## Your Business Model (Clarified)
 
-CrediBill handles subscription billing and payment collection for SaaS applications using African payment providers (Flutterwave, PawaPay, Pesapal, DPO).
+**CrediBill is a Subscription Tracking Service, NOT a Payment Processor**
 
----
+### What You DO:
+- Track subscription lifecycle (created, active, trialing, cancelled, expired)
+- Monitor billing periods and renewal dates
+- Track usage and generate invoices
+- Send webhooks to clients when events occur
 
-## Architecture
+### What You DON'T DO:
+- ❌ Initiate payments
+- ❌ Collect money from end-users
+- ❌ Process credit cards or mobile money
 
-### Multi-Tenant Design
+### What Your CLIENTS Do:
+- Collect payments from their end-users
+- Use their own payment provider accounts (Flutterwave, PawaPay, Pesapal, DPO)
+- Handle failed payments and retries
+- Manage refunds
 
-- Each SaaS app connects their own payment provider accounts
-- Credentials stored encrypted per app
-- Payments flow directly to SaaS app's provider account
-- CrediBill orchestrates but doesn't hold funds
+## Complete Payment Flow
 
-### Key Components
-
-1. **Payment Providers** - SaaS apps configure providers in settings
-2. **Payment Orchestration** - Automated payment initiation
-3. **Webhook Handling** - Receive payment confirmations from providers
-4. **Outgoing Webhooks** - Notify SaaS apps of payment events
-5. **Cron Jobs** - Automated billing cycles
-
----
-
-## Payment Lifecycle
-
-### 1. Trial to Paid Conversion
-
-**Trigger:** Trial period expires
-**Process:**
-
-- Cron job (daily 2 AM UTC) checks expired trials
-- System creates invoice from subscription + usage data
-- Gets app's primary payment provider
-- Initiates payment via provider adapter
-- Creates payment transaction record
-- Returns payment reference/URL
-
-**Files Involved:**
-
-- `convex/cronHandlers.ts` - processTrialExpirations
-- `convex/payments.ts` - initiateSubscriptionPayment
-- `convex/paymentsNode.ts` - Provider adapter calls
-
-### 2. Recurring Payments
-
-**Trigger:** Subscription renewal date reached
-**Process:**
-
-- Cron job (daily 3 AM UTC) checks due subscriptions
-- Generates invoice for next billing period
-- Includes metered usage charges
-- Initiates payment automatically
-- Updates subscription billing dates
-
-**Files Involved:**
-
-- `convex/cronHandlers.ts` - processRecurringPayments
-- `convex/payments.ts` - processRecurringPayment
-
-### 3. Payment Confirmation
-
-**Trigger:** Provider sends webhook
-**Process:**
-
-- Webhook received at `/webhooks/{provider}`
-- Signature verification (HMAC/SHA256)
-- Replay attack prevention
-- Idempotency check
-- Transaction status update
-- Invoice marked as paid (if successful)
-- Outgoing webhook sent to SaaS app
-
-**Files Involved:**
-
-- `convex/http.ts` - Webhook routes
-- `convex/webhookActions.ts` - Handler functions
-- `convex/webhookQueries.ts` - Transaction lookups
-- `convex/webhookMutations.ts` - Status updates
-- `convex/outgoingWebhooks.ts` - Customer notifications
-
-### 4. Failed Payment Handling
-
-**Trigger:** Payment fails or webhook indicates failure
-**Process:**
-
-- Subscription status: ACTIVE → PAST_DUE
-- Failed attempt counter increments
-- Retry scheduled (exponential backoff)
-- Cron job (daily 4 AM UTC) retries failed payments
-- After 3 failures, subscription remains PAST_DUE
-- SaaS app notified via webhook
-
-**Files Involved:**
-
-- `convex/cronHandlers.ts` - retryFailedPayments
-- `convex/webhookMutations.ts` - updateTransactionFromWebhook
-
----
-
-## Payment Providers
-
-### Supported Providers
-
-#### Flutterwave
-
-- **Coverage:** Uganda, Kenya, Rwanda, Nigeria
-- **Payment Methods:** Mobile Money (MTN, Airtel), Cards, Bank Transfer
-- **Webhook Signature:** SHA256 hash via `verif-hash` header
-- **Test Mode:** Yes
-
-#### PawaPay
-
-- **Coverage:** Uganda, Kenya, Tanzania
-- **Payment Methods:** Mobile Money only (MTN, Airtel, Vodacom)
-- **Webhook Signature:** HMAC-SHA256 via `X-Signature` header
-- **Test Mode:** Yes
-
-#### Pesapal
-
-- **Coverage:** East Africa
-- **Payment Methods:** Cards, Mobile Money
-- **Webhook Signature:** OAuth + API verification
-- **Test Mode:** Yes
-
-#### DPO (Direct Pay Online)
-
-- **Coverage:** Africa-wide
-- **Payment Methods:** Cards, Bank Transfer
-- **Webhook Signature:** XML API verification with CompanyToken
-- **Test Mode:** Yes
-
----
-
-## Security Features
-
-### Webhook Signature Verification
-
-- **Timing-safe comparison** - Prevents timing attack side channels
-- **HMAC-SHA256** - Industry standard signature verification
-- **Replay attack prevention** - 5-minute tolerance, 24-hour max age
-- **Idempotency** - Duplicate webhook detection via event ID search
-
-### Credential Encryption
-
-- **AES-256-GCM** - Encryption for stored credentials
-- **SHA256 key derivation** - Secure key management
-- **Per-app encryption** - Isolated credential storage
-
-### Race Condition Protection
-
-- **Terminal state guards** - Prevents overwriting success/canceled/refunded states
-- **Atomic updates** - Transaction updates are transactional
-
----
-
-## Cron Jobs Schedule
-
-| Job                    | Frequency   | Time (UTC) | Purpose                                 |
-| ---------------------- | ----------- | ---------- | --------------------------------------- |
-| Trial Expirations      | Daily       | 2:00 AM    | Convert expired trials to paid          |
-| Recurring Payments     | Daily       | 3:00 AM    | Process subscription renewals           |
-| Failed Payment Retries | Daily       | 4:00 AM    | Retry failed transactions               |
-| Cleanup Expired        | Daily       | 5:00 AM    | Mark old pending transactions as failed |
-| Webhook Retries        | Every 5 min | -          | Retry failed outgoing webhooks          |
-
----
-
-## Database Schema
-
-### Payment Providers Table
-
-```typescript
-{
-  organizationId: Id<"organizations">,
-  appId: Id<"apps">,
-  provider: "flutterwave" | "pawapay" | "pesapal" | "dpo" | "paystack" | "stripe",
-  credentials: {
-    publicKey?: string,
-    secretKeyEncrypted: string,
-    merchantId?: string,
-    apiUrl?: string
-  },
-  environment: "test" | "live",
-  isPrimary: boolean,
-  isActive: boolean,
-  webhookSecret?: string
-}
+### Flow Diagram
+```
+End User → Client App → Payment Provider → CrediBill → Client App
+   (1)        (2)           (3)              (4)        (5)
 ```
 
-### Payment Transactions Table
+### Step-by-Step Flow
 
-```typescript
-{
-  organizationId: Id<"organizations">,
-  appId: Id<"apps">,
-  customerId: Id<"customers">,
-  subscriptionId?: Id<"subscriptions">,
-  invoiceId?: Id<"invoices">,
-  amount: number,
-  currency: string,
-  paymentProviderId: Id<"paymentProviders">,
-  providerTransactionId?: string,
-  providerReference?: string,
-  paymentMethod: "mobile_money_mtn" | "card_visa" | ...,
-  status: "pending" | "initiated" | "processing" | "success" | "failed" | "canceled" | "refunded",
-  attemptNumber: number,
-  isRetry: boolean,
-  providerResponse?: any,
-  initiatedAt: number,
-  completedAt?: number,
-  expiresAt?: number
-}
-```
+#### 1. **End User Initiates Action**
+- User clicks "Subscribe" or "Upgrade" in client's app
+- User chooses payment method (mobile money, card, etc.)
 
-### Webhook Logs Table (Incoming)
-
-```typescript
-{
-  organizationId: Id<"organizations">,
-  appId: Id<"apps">,
-  provider: "flutterwave" | "pawapay" | "pesapal" | "dpo" | ...,
-  event: string,
-  payload: any,
-  status: "received" | "processing" | "processed" | "failed" | "ignored",
-  signatureValid?: boolean,
-  paymentTransactionId?: Id<"paymentTransactions">,
-  subscriptionId?: Id<"subscriptions">,
-  receivedAt: number,
-  processedAt?: number
-}
-```
-
----
-
-## Error Handling
-
-### Common Scenarios
-
-1. **Provider API Down**
-   - Transaction marked as failed
-   - Retry scheduled for later
-   - SaaS app notified via webhook
-
-2. **Invalid Credentials**
-   - Payment initiation fails
-   - Provider connection marked as error
-   - Alert sent to SaaS app admin
-
-3. **Webhook Signature Mismatch**
-   - Webhook rejected
-   - Logged for security audit
-   - No state changes
-
-4. **Duplicate Webhooks**
-   - Idempotency check catches duplicate
-   - Webhook logged as "ignored"
-   - No duplicate processing
-
----
-
-## Testing & Development
-
-### Test Mode
-
-- All providers support sandbox/test mode
-- Configure via `environment: "test"` in provider settings
-- Test credentials don't process real money
-- Test webhooks can be triggered manually
-
-### Local Development
-
-- Webhook endpoints require public URL
-- Use ngrok or similar for local testing
-- Convex dev server handles webhook routes
-
----
-
-## API Integration Examples
-
-### For SaaS Apps Using CrediBill
-
-#### 1. Configure Payment Provider
-
-```typescript
-// In your app's settings page
-await convex.mutation(api.paymentProviders.addPaymentProvider, {
-  appId: currentApp._id,
-  provider: "flutterwave",
-  credentials: {
-    publicKey: "FLWPUBK_TEST-xxx",
-    secretKey: "FLWSECK_TEST-xxx",
-  },
-  environment: "test",
-  isPrimary: true,
+#### 2. **Client Collects Payment**
+```javascript
+// Client's backend code
+app.post('/subscribe', async (req, res) => {
+  const { customerId, planId } = req.body;
+  
+  // Step 2a: Create subscription in CrediBill (status: pending)
+  const subscription = await credibill.subscriptions.create({
+    customer_id: customerId,
+    plan_id: planId
+  });
+  
+  // Step 2b: Initiate payment with THEIR payment provider
+  const payment = await flutterwave.initiate({
+    amount: subscription.plan.baseAmount,
+    currency: 'UGX',
+    customer: {...},
+    tx_ref: subscription.id, // Important: Link payment to subscription
+    callback_url: 'https://client-app.com/payment-callback'
+  });
+  
+  // Step 2c: Send user to payment page
+  res.json({ payment_url: payment.link });
 });
 ```
 
-#### 2. Handle Webhook Events
+#### 3. **Payment Provider Processes Payment**
+- User completes payment (M-Pesa, card, etc.)
+- Payment provider validates and processes
+- Provider sends webhooks to **TWO** endpoints:
+  - CrediBill webhook: `https://credibill.com/webhooks/flutterwave`
+  - Client webhook: `https://client-app.com/webhooks/flutterwave`
 
+#### 4. **CrediBill Receives Payment Notification**
+```
+POST https://credibill.com/webhooks/flutterwave
+{
+  "event": "charge.completed",
+  "data": {
+    "status": "successful",
+    "tx_ref": "sub_k123abc...",
+    "amount": 5000,
+    "currency": "UGX",
+    "customer": {...}
+  }
+}
+```
+
+CrediBill's webhook handler:
+- Verifies webhook signature
+- Finds transaction/subscription by reference
+- Updates subscription status (pending → active)
+- Creates invoice record
+- Records payment
+- **Sends outgoing webhook to client** ✅
+
+#### 5. **Client Receives Confirmation**
+```
+POST https://client-app.com/webhooks/credibill
+{
+  "event": "subscription.activated",
+  "data": {
+    "subscription": {...},
+    "payment": {...},
+    "invoice": {...}
+  }
+}
+```
+
+Client's webhook handler:
+- Verifies signature
+- Activates user's account
+- Enables premium features
+- Sends confirmation email
+
+## Incoming Webhook System (What You Built)
+
+### Webhook Endpoints
+
+Your system receives webhooks from payment providers:
+
+| Provider | Endpoint | Signature Header |
+|----------|----------|------------------|
+| Flutterwave | `/webhooks/flutterwave` | `verif-hash` |
+| PawaPay | `/webhooks/pawapay` | `x-pawapay-signature` |
+| Pesapal | `/webhooks/pesapal` | `x-pesapal-signature` |
+| DPO | `/webhooks/dpo` | `x-dpo-signature` |
+
+### Webhook Structure
+
+**Files:**
+- `convex/http.ts` - HTTP routes for each provider
+- `convex/webhookActionsFlutterwave.ts` - Flutterwave handler
+- `convex/webhookActionsPawapay.ts` - PawaPay handler
+- `convex/webhookActionsPesapal.ts` - Pesapal handler
+- `convex/webhookActionsDpo.ts` - DPO handler
+
+**Each Handler Does:**
+1. Verify webhook signature (security)
+2. Extract transaction reference
+3. Find transaction in database
+4. Update payment status
+5. Update subscription status
+6. Log webhook delivery
+7. **Send outgoing webhook to client** ✅
+
+### Configuration (How Clients Set This Up)
+
+When a client creates an app in your system, they provide:
+
+1. **Payment Provider Selection** (Immutable)
+   - Choose: Flutterwave, PawaPay, Pesapal, or DPO
+   - Stored in `apps.paymentProviderId`
+
+2. **Provider Credentials** (Encrypted)
+   - API keys, secrets, merchant IDs
+   - Stored in `paymentProviderCredentials` table
+   - Used to verify incoming webhooks
+
+3. **Webhook URL** (For outgoing webhooks)
+   - Where to send notifications
+   - Stored in `apps.webhookUrl`
+   - Example: `https://client-app.com/webhooks/credibill`
+
+### Example Webhook Configuration Flow
+
+```javascript
+// Client configures their app in CrediBill dashboard
+POST /api/apps
+{
+  "name": "My SaaS App",
+  "payment_provider": "flutterwave", // Choose provider
+  "credentials": {
+    "public_key": "FLWPUBK-xxx",
+    "secret_key": "FLWSECK-xxx", // Encrypted
+    "webhook_secret": "xxx" // For verifying incoming webhooks
+  },
+  "webhook_url": "https://my-saas.com/webhooks/credibill", // For outgoing webhooks
+  "webhook_secret": "my-secret-key" // For signing outgoing webhooks
+}
+```
+
+## What Needs to Be Configured
+
+### For INCOMING Webhooks (Payment Provider → CrediBill)
+
+Clients need to configure in their payment provider dashboard:
+
+**Flutterwave Dashboard:**
+```
+Webhook URL: https://credibill.com/webhooks/flutterwave
+Events: charge.completed, transfer.completed
+```
+
+**PawaPay Dashboard:**
+```
+Webhook URL: https://credibill.com/webhooks/pawapay
+Events: payment.completed, payment.failed
+```
+
+**Pesapal Dashboard:**
+```
+IPN URL: https://credibill.com/webhooks/pesapal
+Notification Type: COMPLETED, FAILED
+```
+
+**DPO Dashboard:**
+```
+Callback URL: https://credibill.com/webhooks/dpo
+```
+
+### For OUTGOING Webhooks (CrediBill → Client)
+
+Already configured in your Settings → Webhooks tab:
+- Webhook URL: Client's endpoint
+- Webhook Secret: For signature verification
+- Events: All enabled by default
+
+## Security Flow
+
+### 1. Incoming Webhook Verification
 ```typescript
-// Your app's webhook endpoint
-app.post("/webhooks/credibill", (req, res) => {
+// Your code already does this
+const signature = headers['verif-hash']; // Flutterwave example
+const expectedSignature = calculateSignature(payload, webhookSecret);
+
+if (signature !== expectedSignature) {
+  throw new Error('Invalid signature');
+}
+```
+
+### 2. Outgoing Webhook Signing
+```typescript
+// Your code already does this
+const hmac = crypto.createHmac('sha256', clientWebhookSecret);
+hmac.update(JSON.stringify(payload));
+const signature = hmac.digest('hex');
+
+headers['X-Webhook-Signature'] = signature;
+```
+
+## Common Events
+
+### Incoming (From Payment Providers)
+- `charge.completed` - Payment successful
+- `charge.failed` - Payment failed
+- `transfer.completed` - Refund processed
+- `transfer.failed` - Refund failed
+
+### Outgoing (To Clients)
+- `subscription.created` - New subscription
+- `subscription.activated` - Payment successful, subscription active
+- `subscription.renewed` - Billing period renewed
+- `subscription.cancelled` - Subscription ended
+- `subscription.plan_changed` - Plan upgrade/downgrade
+- `payment.failed` - Payment attempt failed
+- `invoice.created` - New invoice generated
+
+## What Needs to Be Removed
+
+Since you DON'T initiate payments, these need to be cleaned up:
+
+### Files to Review/Remove:
+1. ❌ `convex/payments.ts` - Contains payment initiation logic
+2. ❌ `convex/paymentsNode.ts` - Node.js payment adapter calls
+3. ❌ `convex/lib/paymentAdapters/` - Adapter implementations
+   - `flutterwave.ts` - `initiatePayment()` method
+   - `pawapay.ts` - `initiatePayment()` method
+   - `pesapal.ts` - `initiatePayment()` method
+   - `dpo.ts` - `initiatePayment()` method
+
+### What to KEEP:
+✅ Webhook handlers (incoming)
+✅ Webhook delivery (outgoing)
+✅ Payment transaction records (for tracking)
+✅ Invoice generation
+✅ Subscription management
+
+## Recommended Architecture
+
+### Your Responsibility (CrediBill):
+```typescript
+// Track subscription lifecycle
+subscriptions.create() → status: "pending"
+subscriptions.activate() → status: "active" (after webhook)
+subscriptions.renew() → extend billing period
+subscriptions.cancel() → status: "cancelled"
+
+// Generate invoices
+invoices.create() → track what's owed
+invoices.recordPayment() → mark as paid (after webhook)
+
+// Send notifications
+webhooks.send("subscription.activated", {...})
+webhooks.send("invoice.paid", {...})
+```
+
+### Client's Responsibility:
+```typescript
+// Initiate payments
+flutterwave.initiatePayment({
+  amount: plan.price,
+  customer: {...},
+  tx_ref: subscription.id
+})
+
+// Handle payment callbacks
+app.post('/payment-callback', async (req, res) => {
+  if (req.query.status === 'successful') {
+    // Wait for CrediBill webhook to confirm
+  }
+})
+
+// Receive CrediBill webhooks
+app.post('/webhooks/credibill', async (req, res) => {
   const { event, data } = req.body;
-
+  
   switch (event) {
-    case "payment.success":
-      // Activate customer's subscription
-      activateFeatures(data.customerId);
+    case 'subscription.activated':
+      await activateUser(data.customer.external_id);
       break;
-
-    case "payment.failed":
-      // Notify customer, restrict access
-      suspendAccount(data.customerId);
+    case 'payment.failed':
+      await notifyUser(data.customer.email);
       break;
   }
-
-  res.status(200).send("OK");
-});
+})
 ```
 
----
+## Summary
 
-## Monitoring & Observability
+Your system is a **passive tracker** that:
+1. ✅ Receives payment notifications from providers
+2. ✅ Updates subscription states
+3. ✅ Generates invoices and usage reports
+4. ✅ Sends notifications to clients
 
-### Logs Available
+Your system does NOT:
+1. ❌ Initiate payments
+2. ❌ Store credit card details
+3. ❌ Process transactions
+4. ❌ Handle refunds
 
-- All webhook deliveries (incoming/outgoing)
-- Payment transaction history
-- Provider connection status
-- Retry attempts and outcomes
-
-### Metrics to Track
-
-- Payment success rate per provider
-- Average payment processing time
-- Webhook delivery success rate
-- Failed payment retry effectiveness
-
----
-
-## Best Practices
-
-1. **Always verify webhook signatures** in your app
-2. **Handle idempotent webhooks** - same event may arrive multiple times
-3. **Use test mode first** before going live
-4. **Monitor failed payments** regularly
-5. **Keep provider credentials secure** - never log or expose
-6. **Set up webhook retries** in your app (CrediBill retries too)
-7. **Test all payment methods** your customers will use
-
----
-
-## Support & Resources
-
-### Provider Documentation Links
-
-- [Flutterwave API Docs](https://developer.flutterwave.com/docs)
-- [PawaPay API Docs](https://docs.pawapay.io/)
-- [Pesapal API Docs](https://developer.pesapal.com/)
-- [DPO API Docs](https://www.directpay.online/docs/)
-
-### Contact
-
-- Technical support: [Your support email]
-- Integration help: [Your integration email]
-- Status page: [Your status page URL]
+This is the correct architecture for a subscription management platform! 🎉

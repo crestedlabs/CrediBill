@@ -403,27 +403,115 @@ export const deleteOrganization = mutation({
 
     // Delete all related data for each app
     for (const app of apps) {
-      // Delete customers
-      const customers = await ctx.db
-        .query("customers")
+      // 1. Delete API Keys
+      const apiKeys = await ctx.db
+        .query("apiKeys")
         .withIndex("by_app", (q) => q.eq("appId", app._id))
         .collect();
-
-      for (const customer of customers) {
-        await ctx.db.delete(customer._id);
+      for (const key of apiKeys) {
+        await ctx.db.delete(key._id);
       }
 
-      // Delete plans
+      // 2. Delete Webhooks
+      const webhooks = await ctx.db
+        .query("webhooks")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const webhook of webhooks) {
+        await ctx.db.delete(webhook._id);
+      }
+
+      // 3. Delete Payment Provider Credentials
+      const credentials = await ctx.db
+        .query("paymentProviderCredentials")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const cred of credentials) {
+        await ctx.db.delete(cred._id);
+      }
+
+      // 4. Delete Payment Transactions
+      const paymentTransactions = await ctx.db
+        .query("paymentTransactions")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const transaction of paymentTransactions) {
+        await ctx.db.delete(transaction._id);
+      }
+
+      // 5. Delete Webhook Logs
+      const webhookLogs = await ctx.db
+        .query("webhookLogs")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const log of webhookLogs) {
+        await ctx.db.delete(log._id);
+      }
+
+      // 6. Delete Outgoing Webhook Logs
+      const outgoingWebhookLogs = await ctx.db
+        .query("outgoingWebhookLogs")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const log of outgoingWebhookLogs) {
+        await ctx.db.delete(log._id);
+      }
+
+      // 7. Delete Invoices
+      const invoices = await ctx.db
+        .query("invoices")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const invoice of invoices) {
+        await ctx.db.delete(invoice._id);
+      }
+
+      // 8. Delete Usage Summaries
+      const usageSummaries = await ctx.db
+        .query("usageSummaries")
+        .filter((q) => q.eq(q.field("appId"), app._id))
+        .collect();
+      for (const summary of usageSummaries) {
+        await ctx.db.delete(summary._id);
+      }
+
+      // 9. Delete Usage Events
+      const usageEvents = await ctx.db
+        .query("usageEvents")
+        .filter((q) => q.eq(q.field("appId"), app._id))
+        .collect();
+      for (const event of usageEvents) {
+        await ctx.db.delete(event._id);
+      }
+
+      // 10. Delete Subscriptions
+      const subscriptions = await ctx.db
+        .query("subscriptions")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const subscription of subscriptions) {
+        await ctx.db.delete(subscription._id);
+      }
+
+      // 11. Delete Plans
       const plans = await ctx.db
         .query("plans")
         .withIndex("by_app", (q) => q.eq("appId", app._id))
         .collect();
-
       for (const plan of plans) {
         await ctx.db.delete(plan._id);
       }
 
-      // Delete the app
+      // 12. Delete Customers
+      const customers = await ctx.db
+        .query("customers")
+        .withIndex("by_app", (q) => q.eq("appId", app._id))
+        .collect();
+      for (const customer of customers) {
+        await ctx.db.delete(customer._id);
+      }
+
+      // 13. Delete the app
       await ctx.db.delete(app._id);
     }
 

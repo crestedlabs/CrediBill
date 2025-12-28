@@ -47,8 +47,11 @@ export function SettingsApiKeysSection({ appId }: SettingsApiKeysSectionProps) {
   const { canManageApiKeys } = useAppPermissions();
   const apiKeys = useQuery(api.apiKeys.getApiKeysByApp, { appId });
   const revokeApiKey = useMutation(api.apiKeys.revokeApiKey);
+  const deleteApiKey = useMutation(api.apiKeys.deleteApiKey);
   const [keyToRevoke, setKeyToRevoke] = useState<Id<"apiKeys"> | null>(null);
+  const [keyToDelete, setKeyToDelete] = useState<Id<"apiKeys"> | null>(null);
   const [revokingKey, setRevokingKey] = useState(false);
+  const [deletingKey, setDeletingKey] = useState(false);
 
   const handleCopyKey = (keyText: string) => {
     navigator.clipboard.writeText(keyText);
@@ -69,6 +72,23 @@ export function SettingsApiKeysSection({ appId }: SettingsApiKeysSectionProps) {
       );
     } finally {
       setRevokingKey(false);
+    }
+  };
+
+  const handleDeleteKey = async () => {
+    if (!keyToDelete) return;
+
+    setDeletingKey(true);
+    try {
+      await deleteApiKey({ apiKeyId: keyToDelete });
+      toast.success("API key deleted permanently");
+      setKeyToDelete(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to delete API key"
+      );
+    } finally {
+      setDeletingKey(false);
     }
   };
 
@@ -200,14 +220,32 @@ export function SettingsApiKeysSection({ appId }: SettingsApiKeysSectionProps) {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-40">
                               <DropdownMenuItem
-                                className="text-red-600"
+                                className="text-amber-600"
                                 onClick={() => setKeyToRevoke(key._id)}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Revoke
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-red-600"
+                                onClick={() => setKeyToDelete(key._id)}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Delete
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
+                        )}
+                        {key.status === "revoked" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-3 text-red-600 hover:text-red-700 hover:bg-red-50 ml-3"
+                            onClick={() => setKeyToDelete(key._id)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete
+                          </Button>
                         )}
                       </div>
                     ))
@@ -247,6 +285,33 @@ export function SettingsApiKeysSection({ appId }: SettingsApiKeysSectionProps) {
               className="bg-red-600 hover:bg-red-700"
             >
               {revokingKey ? "Revoking..." : "Revoke"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete API Key Confirmation Dialog */}
+      <AlertDialog
+        open={keyToDelete !== null}
+        onOpenChange={(open) => !open && setKeyToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete API Key Permanently</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this API key? This
+              action cannot be undone and will remove all records of this key
+              from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingKey}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteKey}
+              disabled={deletingKey}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deletingKey ? "Deleting..." : "Delete Permanently"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

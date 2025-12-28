@@ -2,7 +2,6 @@
 
 import { useApp } from "@/contexts/app-context";
 import { TabsContent } from "@/components/ui/tabs";
-import { SettingsApiKeysSection } from "@/components/settings/settings-api-keys-section";
 import { SettingsWebhooksSection } from "@/components/settings/settings-webhooks-section";
 
 export default function SettingsWebhooks() {
@@ -12,7 +11,6 @@ export default function SettingsWebhooks() {
 
   return (
     <TabsContent value="webhooks" className="space-y-8 m-0">
-      <SettingsApiKeysSection appId={selectedApp._id} />
       <SettingsWebhooksSection appId={selectedApp._id} />
     </TabsContent>
   );

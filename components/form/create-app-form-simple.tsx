@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Rocket, Globe, Settings, Loader2 } from "lucide-react";
+import {
+  Rocket,
+  Globe,
+  Settings,
+  Loader2,
+  CreditCard,
+  AlertCircle,
+} from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { parseConvexError } from "@/lib/error-utils";
 import {
@@ -36,6 +44,9 @@ export function CreateAppFormSimple() {
   const { selectedOrg } = useOrganization();
   const createAppMutation = useMutation(api.apps.createApp);
 
+  // Fetch available payment providers
+  const providers = useQuery(api.providerCatalog.getActiveProviders);
+
   // Set organization from context
   useEffect(() => {
     if (selectedOrg?._id && !formData.organizationId) {
@@ -45,6 +56,22 @@ export function CreateAppFormSimple() {
       }));
     }
   }, [selectedOrg, formData.organizationId]);
+
+  // Set default provider when providers load
+  useEffect(() => {
+    if (
+      providers &&
+      providers.length > 0 &&
+      !(formData as any).paymentProviderId
+    ) {
+      // Default to first provider
+      const defaultProvider = providers[0];
+      setFormData((prev) => ({
+        ...prev,
+        paymentProviderId: defaultProvider._id as string,
+      }));
+    }
+  }, [providers]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,12 +87,19 @@ export function CreateAppFormSimple() {
       return;
     }
 
+    if (!(formData as any).paymentProviderId) {
+      toast.error("Please select a payment provider");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const result = await createAppMutation({
         name: formData.name,
         description: formData.description,
         organizationId: formData.organizationId as Id<"organizations">,
+        paymentProviderId: (formData as any)
+          .paymentProviderId as Id<"providerCatalog">,
         defaultCurrency: formData.defaultCurrency,
         language: formData.language,
         retryPolicy: formData.retryPolicy,
@@ -146,6 +180,126 @@ export function CreateAppFormSimple() {
             placeholder="Brief description of your application..."
             className="mt-6"
           />
+        </CardContent>
+      </Card>
+
+      {/* Payment Provider Selection */}
+      <Card className="border-0 shadow-sm bg-white">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-50 rounded-lg">
+              <CreditCard className="h-5 w-5 text-orange-600" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-semibold">
+                Payment Provider
+              </CardTitle>
+              <CardDescription className="text-slate-500">
+                Choose your payment gateway for processing transactions
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-4">
+          <Alert className="border-amber-200 bg-amber-50">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-900">
+              <span className="font-semibold">Important:</span> Payment provider
+              selection is <strong>permanent and cannot be changed</strong>{" "}
+              after app creation. Choose carefully based on your business needs.
+            </AlertDescription>
+          </Alert>
+
+          {/* Provider Cards */}
+          {!providers ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {providers.map((provider) => {
+                const isSelected =
+                  (formData as any).paymentProviderId === provider._id;
+                return (
+                  <button
+                    key={provider._id}
+                    type="button"
+                    onClick={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        paymentProviderId: provider._id as string,
+                      }))
+                    }
+                    className={`relative p-4 rounded-lg border-2 transition-all text-left cursor-pointer flex flex-col ${
+                      isSelected
+                        ? "border-teal-600 bg-teal-50"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute top-2 right-2">
+                        <div className="w-5 h-5 bg-teal-600 rounded-full flex items-center justify-center">
+                          <svg
+                            className="w-3 h-3 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Logo Section */}
+                    <div className="flex items-center justify-center mb-3 h-10">
+                      {provider.logoUrl ? (
+                        <img
+                          src={provider.logoUrl}
+                          alt={provider.displayName}
+                          className="max-h-10 max-w-full object-contain"
+                          onError={(e) => {
+                            // Fallback to emoji if image fails to load
+                            e.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="text-2xl">{provider.logoEmoji}</div>
+                      )}
+                    </div>
+
+                    {/* Description and Features */}
+                    <div className="flex-1">
+                      <p
+                        className={`text-xs text-center mb-2 ${
+                          isSelected ? "text-teal-700" : "text-slate-600"
+                        }`}
+                      >
+                        {provider.description}
+                      </p>
+
+                      <div
+                        className={`text-xs space-y-1 text-center ${
+                          isSelected ? "text-teal-700" : "text-slate-500"
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-2">
+                          {provider.supportsRecurring && (
+                            <span>• Recurring</span>
+                          )}
+                          {provider.supportsWebhooks && <span>• Webhooks</span>}
+                        </div>
+                        <div>{provider.regions.length} countries</div>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

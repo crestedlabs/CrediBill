@@ -2,6 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { getCurrentUser } from "./users";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
+import { internal } from "./_generated/api";
 
 /**
  * Create a new customer for an app
@@ -72,6 +73,18 @@ export const createCustomer = mutation({
       type: args.type || "individual",
       status: args.status || "active",
     });
+
+    // Send customer.created webhook
+    const customer = await ctx.db.get(customerId);
+    if (customer) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: args.appId,
+        event: "customer.created",
+        payload: {
+          customer,
+        },
+      });
+    }
 
     return customerId;
   },
@@ -303,6 +316,21 @@ export const updateCustomer = mutation({
     // Update the customer
     await ctx.db.patch(args.customerId, updates);
 
+    // Send customer.updated webhook if there were actual changes
+    if (Object.keys(updates).length > 0) {
+      const updatedCustomer = await ctx.db.get(args.customerId);
+      if (updatedCustomer) {
+        await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+          appId: customer.appId,
+          event: "customer.updated",
+          payload: {
+            customer: updatedCustomer,
+            changes: updates,
+          },
+        });
+      }
+    }
+
     return args.customerId;
   },
 });
@@ -350,6 +378,15 @@ export const deleteCustomer = mutation({
       );
     }
 
+    // Auto-delete cancelled/expired subscriptions (they're no longer needed)
+    const inactiveSubscriptions = subscriptions.filter(
+      (s) => s.status === "cancelled" || s.status === "expired"
+    );
+    
+    for (const subscription of inactiveSubscriptions) {
+      await ctx.db.delete(subscription._id);
+    }
+
     // If force delete, cascade delete related data
     if (args.force && subscriptions.length > 0) {
       for (const subscription of subscriptions) {
@@ -394,6 +431,17 @@ export const deleteCustomer = mutation({
 
     // Delete the customer
     await ctx.db.delete(args.customerId);
+
+    // Send customer.deleted webhook
+    await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+      appId: customer.appId,
+      event: "customer.deleted",
+      payload: {
+        customer,
+        force_deleted: !!args.force,
+        cascaded_subscriptions: args.force ? subscriptions.length : 0,
+      },
+    });
 
     return { success: true };
   },

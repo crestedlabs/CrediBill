@@ -13,7 +13,6 @@ export const createSubscription = mutation({
     customerId: v.id("customers"),
     planId: v.id("plans"),
     startDate: v.optional(v.number()), // Default to now
-    trialDays: v.optional(v.number()), // Number of trial days (0 = no trial)
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -69,12 +68,10 @@ export const createSubscription = mutation({
       });
     }
 
-    // Check for existing active subscription to the same plan
+    // Check for any existing active subscription (only one subscription allowed per customer)
     const existingSubscription = await ctx.db
       .query("subscriptions")
-      .withIndex("by_customer_plan", (q) =>
-        q.eq("customerId", args.customerId).eq("planId", args.planId)
-      )
+      .withIndex("by_customer", (q) => q.eq("customerId", args.customerId))
       .filter((q) =>
         q.or(
           q.eq(q.field("status"), "active"),
@@ -86,7 +83,7 @@ export const createSubscription = mutation({
     if (existingSubscription) {
       throw new ConvexError({
         message:
-          "This customer already has an active subscription to this plan. Please cancel the existing subscription first or choose a different plan.",
+          "This customer already has an active subscription. Please cancel the existing subscription first or use 'Change Subscription' to switch plans.",
         code: "DUPLICATE_SUBSCRIPTION",
       });
     }
@@ -94,8 +91,8 @@ export const createSubscription = mutation({
     // Calculate dates
     const now = Date.now();
     const startDate = args.startDate || now;
-    // Use trial period from plan, fallback to provided trialDays for backward compatibility
-    const trialDays = plan.trialDays ?? args.trialDays ?? 0;
+    // Use trial period from plan
+    const trialDays = plan.trialDays ?? 0;
     const isTrialing = trialDays > 0;
 
     // Calculate period end based on plan interval
@@ -149,6 +146,23 @@ export const createSubscription = mutation({
       cancelAtPeriodEnd: false,
       usageQuantity: 0,
       usageAmount: 0,
+      trialEndsAt: isTrialing ? trialEndDate : undefined,
+      nextPaymentDate: isTrialing ? trialEndDate : currentPeriodEnd,
+      lastPaymentDate: undefined,
+      failedPaymentAttempts: 0,
+    });
+
+    // Send webhook to client
+    const subscription = await ctx.db.get(subscriptionId);
+    
+    await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+      appId: args.appId,
+      event: "subscription.created",
+      payload: {
+        subscription,
+        customer,
+        plan,
+      },
     });
 
     return subscriptionId;
@@ -365,6 +379,21 @@ export const updateSubscriptionStatus = mutation({
           status: "cancelled",
           cancelAtPeriodEnd: false,
         });
+        
+        // Send webhook
+        const cancelledSub = await ctx.db.get(args.subscriptionId);
+        const customer = await ctx.db.get(subscription.customerId);
+        
+        if (cancelledSub && customer) {
+          await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+            appId: subscription.appId,
+            event: "subscription.cancelled",
+            payload: {
+              subscription: cancelledSub,
+              customer,
+            },
+          });
+        }
         break;
 
       case "cancel_at_period_end":
@@ -402,6 +431,22 @@ export const renewSubscription = mutation({
       await ctx.db.patch(args.subscriptionId, {
         status: "cancelled",
       });
+      
+      // Send webhook for cancelled subscription
+      const cancelledSub = await ctx.db.get(args.subscriptionId);
+      const customer = await ctx.db.get(subscription.customerId);
+      
+      if (cancelledSub && customer) {
+        await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+          appId: subscription.appId,
+          event: "subscription.cancelled",
+          payload: {
+            subscription: cancelledSub,
+            customer,
+          },
+        });
+      }
+      
       return { success: true, renewed: false, cancelled: true };
     }
 
@@ -466,6 +511,154 @@ export const renewSubscription = mutation({
       usageAmount: 0,
     });
 
+    // Send webhook
+    const renewedSub = await ctx.db.get(args.subscriptionId);
+    const customer = await ctx.db.get(subscription.customerId);
+    
+    if (renewedSub && customer) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: subscription.appId,
+        event: "subscription.renewed",
+        payload: {
+          subscription: renewedSub,
+          customer,
+          plan,
+        },
+      });
+    }
+
     return { success: true, renewed: true, newPeriodEnd };
+  },
+});
+
+/**
+ * Change subscription plan with proration
+ */
+export const changeSubscription = mutation({
+  args: {
+    subscriptionId: v.id("subscriptions"),
+    newPlanId: v.id("plans"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new ConvexError("Unauthorized");
+
+    // Get the subscription
+    const subscription = await ctx.db.get(args.subscriptionId);
+    if (!subscription) throw new ConvexError("Subscription not found");
+
+    // Get the app
+    const app = await ctx.db.get(subscription.appId);
+    if (!app) throw new ConvexError("App not found");
+
+    // Verify user has access
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) throw new ConvexError("Access denied to organization");
+
+    // Get the current plan
+    const currentPlan = await ctx.db.get(subscription.planId);
+    if (!currentPlan) throw new ConvexError("Current plan not found");
+
+    // Get the new plan
+    const newPlan = await ctx.db.get(args.newPlanId);
+    if (!newPlan) throw new ConvexError("New plan not found");
+
+    // Verify new plan belongs to the same app
+    if (newPlan.appId !== subscription.appId) {
+      throw new ConvexError("New plan must belong to the same app");
+    }
+
+    // Check if new plan is active
+    if (newPlan.status !== "active") {
+      throw new ConvexError("New plan is not available for subscriptions");
+    }
+
+    // Can't change to the same plan
+    if (subscription.planId === args.newPlanId) {
+      throw new ConvexError("Subscription is already on this plan");
+    }
+
+    const now = Date.now();
+    const currentAmount = currentPlan.baseAmount || 0;
+    const newAmount = newPlan.baseAmount || 0;
+    const isUpgrade = newAmount > currentAmount;
+
+    // Calculate proration (only for upgrades on non-trialing subscriptions)
+    let proratedAmount = 0;
+    if (subscription.status === "active" && isUpgrade) {
+      const periodDuration =
+        subscription.currentPeriodEnd - subscription.currentPeriodStart;
+      const timeUsed = now - subscription.currentPeriodStart;
+      const timeRemaining = subscription.currentPeriodEnd - now;
+      const percentRemaining = timeRemaining / periodDuration;
+
+      // Calculate proration for upgrade
+      const unusedAmount = currentAmount * percentRemaining;
+      const proratedNewAmount = newAmount * percentRemaining;
+      proratedAmount = proratedNewAmount - unusedAmount;
+
+      // For upgrades, charge immediately (positive amount)
+    }
+    // For downgrades, no proration - change takes effect at next renewal
+
+    // Create plan snapshot for new plan
+    const newPlanSnapshot = {
+      name: newPlan.name,
+      pricingModel: newPlan.pricingModel,
+      baseAmount: newPlan.baseAmount,
+      currency: newPlan.currency,
+      interval: newPlan.interval,
+      usageMetric: newPlan.usageMetric,
+      unitPrice: newPlan.unitPrice,
+      freeUnits: newPlan.freeUnits,
+    };
+
+    // Update the subscription
+    await ctx.db.patch(args.subscriptionId, {
+      planId: args.newPlanId,
+      planSnapshot: newPlanSnapshot,
+      // Keep current period dates unchanged - they stay on their billing cycle
+      // Period will adjust on next renewal
+    });
+
+    // Send webhook
+    const updatedSub = await ctx.db.get(args.subscriptionId);
+    const customer = await ctx.db.get(subscription.customerId);
+    
+    if (updatedSub && customer) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: app._id,
+        event: "subscription.plan_changed",
+        payload: {
+          subscription: updatedSub,
+          customer,
+          old_plan: currentPlan,
+          new_plan: newPlan,
+          proration: {
+            amount: proratedAmount,
+            is_upgrade: isUpgrade,
+          },
+        },
+      });
+    }
+
+    // Note: In a production system, you would:
+    // 1. Create a credit/debit transaction for proration
+    // 2. If upgrade, charge the prorated amount immediately
+    // 3. If downgrade, apply credit to next invoice
+    // 4. Send notification to customer about plan change
+
+    return {
+      success: true,
+      message: `Subscription changed from ${currentPlan.name} to ${newPlan.name}`,
+      proratedAmount,
+      isUpgrade,
+    };
   },
 });

@@ -10,7 +10,8 @@ import { internal, api } from "./_generated/api";
 
 /**
  * Process trial expirations
- * Finds subscriptions whose trial period has ended and initiates payment
+ * Finds subscriptions whose trial period has ended and notifies clients
+ * (Since we don't initiate payments, clients will handle payment collection)
  */
 export const processTrialExpirations = internalAction({
   handler: async (
@@ -34,24 +35,27 @@ export const processTrialExpirations = internalAction({
     // Process each expired trial
     for (const subscription of subscriptions) {
       try {
-        const result = await ctx.runAction(
-          api.payments.processTrialExpiration,
-          {
-            subscriptionId: subscription._id,
-          }
-        );
+        // Mark trial as expired - client will handle payment collection
+        await ctx.runMutation(internal.cronMutations.markTrialExpired, {
+          subscriptionId: subscription._id,
+        });
 
-        if (result.success) {
-          successCount++;
-          console.log(
-            `[Cron] Successfully processed trial for subscription ${subscription._id}`
-          );
-        } else {
-          failureCount++;
-          console.log(
-            `[Cron] Failed to process trial for subscription ${subscription._id}: ${result.message}`
-          );
-        }
+        // Send webhook to client so they can collect payment
+        await ctx.runMutation(internal.webhookDelivery.queueWebhook, {
+          appId: subscription.appId,
+          event: "subscription.trial_expired",
+          payload: {
+            subscription_id: subscription._id,
+            customer_id: subscription.customerId,
+            trial_ended_at: subscription.trialEndsAt,
+            next_payment_due: subscription.nextPaymentDate,
+          },
+        });
+
+        successCount++;
+        console.log(
+          `[Cron] Successfully processed trial for subscription ${subscription._id}`
+        );
       } catch (error: any) {
         failureCount++;
         console.error(
@@ -75,7 +79,8 @@ export const processTrialExpirations = internalAction({
 
 /**
  * Process recurring payments
- * Finds subscriptions due for renewal and initiates payment
+ * Finds subscriptions due for renewal and sends payment due notifications
+ * (Since we don't initiate payments, clients will handle payment collection)
  */
 export const processRecurringPayments = internalAction({
   handler: async (
@@ -99,35 +104,38 @@ export const processRecurringPayments = internalAction({
     // Process each subscription
     for (const subscription of subscriptions) {
       try {
-        const result = await ctx.runAction(
-          api.payments.processRecurringPayment,
-          {
-            subscriptionId: subscription._id,
-          }
-        );
+        // Send webhook to client so they can collect payment
+        await ctx.runMutation(internal.webhookDelivery.queueWebhook, {
+          appId: subscription.appId,
+          event: "payment.due",
+          payload: {
+            subscription_id: subscription._id,
+            customer_id: subscription.customerId,
+            amount_due: subscription.planSnapshot?.baseAmount || 0,
+            currency: subscription.planSnapshot?.currency || "USD",
+            due_date: subscription.nextPaymentDate,
+            billing_period: {
+              start: subscription.currentPeriodStart,
+              end: subscription.currentPeriodEnd,
+            },
+          },
+        });
 
-        if (result.success) {
-          successCount++;
-          console.log(
-            `[Cron] Successfully processed payment for subscription ${subscription._id}`
-          );
-        } else {
-          failureCount++;
-          console.log(
-            `[Cron] Failed to process payment for subscription ${subscription._id}: ${result.message}`
-          );
-        }
+        successCount++;
+        console.log(
+          `[Cron] Successfully notified client about payment due for subscription ${subscription._id}`
+        );
       } catch (error: any) {
         failureCount++;
         console.error(
-          `[Cron] Error processing payment for subscription ${subscription._id}:`,
+          `[Cron] Error processing payment due notification for subscription ${subscription._id}:`,
           error
         );
       }
     }
 
     console.log(
-      `[Cron] Recurring payment processing complete: ${successCount} succeeded, ${failureCount} failed`
+      `[Cron] Payment due notification processing complete: ${successCount} succeeded, ${failureCount} failed`
     );
 
     return {
@@ -179,21 +187,12 @@ export const retryFailedPayments = internalAction({
           continue;
         }
 
-        const result = await ctx.runAction(api.payments.retryFailedPayment, {
-          transactionId: transaction._id,
-        });
-
-        if (result.success) {
-          successCount++;
-          console.log(
-            `[Cron] Successfully retried transaction ${transaction._id}`
-          );
-        } else {
-          failureCount++;
-          console.log(
-            `[Cron] Failed to retry transaction ${transaction._id}: ${result.message}`
-          );
-        }
+        // Since we don't initiate payments, we don't retry them
+        // Clients handle payment retries in their own systems
+        skippedCount++;
+        console.log(
+          `[Cron] Skipped transaction ${transaction._id}: payment retries handled by client`
+        );
       } catch (error: any) {
         failureCount++;
         console.error(

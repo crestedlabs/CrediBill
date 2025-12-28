@@ -72,7 +72,61 @@ export const deleteFromClerk = internalMutation({
         .collect();
 
       for (const app of apps) {
-        // Get all customers for this app
+        // 1. Delete API Keys (ADDED - was missing)
+        const apiKeys = await ctx.db
+          .query("apiKeys")
+          .withIndex("by_app", (q) => q.eq("appId", app._id))
+          .collect();
+        for (const key of apiKeys) {
+          await ctx.db.delete(key._id);
+        }
+
+        // 2. Delete Webhooks (ADDED - was missing)
+        const webhooks = await ctx.db
+          .query("webhooks")
+          .withIndex("by_app", (q) => q.eq("appId", app._id))
+          .collect();
+        for (const webhook of webhooks) {
+          await ctx.db.delete(webhook._id);
+        }
+
+        // 3. Delete Payment Provider Credentials (ADDED - was missing)
+        const credentials = await ctx.db
+          .query("paymentProviderCredentials")
+          .withIndex("by_app", (q) => q.eq("appId", app._id))
+          .collect();
+        for (const cred of credentials) {
+          await ctx.db.delete(cred._id);
+        }
+
+        // 4. Delete Payment Transactions (ADDED - was missing)
+        const paymentTransactions = await ctx.db
+          .query("paymentTransactions")
+          .withIndex("by_app", (q) => q.eq("appId", app._id))
+          .collect();
+        for (const transaction of paymentTransactions) {
+          await ctx.db.delete(transaction._id);
+        }
+
+        // 5. Delete Webhook Logs (ADDED - was missing)
+        const webhookLogs = await ctx.db
+          .query("webhookLogs")
+          .withIndex("by_app", (q) => q.eq("appId", app._id))
+          .collect();
+        for (const log of webhookLogs) {
+          await ctx.db.delete(log._id);
+        }
+
+        // 6. Delete Outgoing Webhook Logs (ADDED - was missing)
+        const outgoingWebhookLogs = await ctx.db
+          .query("outgoingWebhookLogs")
+          .withIndex("by_app", (q) => q.eq("appId", app._id))
+          .collect();
+        for (const log of outgoingWebhookLogs) {
+          await ctx.db.delete(log._id);
+        }
+
+        // Get all customers for this app (ORIGINAL CODE - unchanged)
         const customers = await ctx.db
           .query("customers")
           .withIndex("by_app", (q) => q.eq("appId", app._id))

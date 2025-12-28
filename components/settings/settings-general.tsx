@@ -18,7 +18,18 @@ import {
   SelectItem,
   SelectGroup,
 } from "@/components/ui/select";
-import { Save, DollarSign, Clock, Globe, Loader2, Tag } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Save,
+  DollarSign,
+  Clock,
+  Globe,
+  Loader2,
+  Tag,
+  TestTube,
+  Copy,
+  Check,
+} from "lucide-react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useApp } from "@/contexts/app-context";
@@ -35,6 +46,7 @@ export default function SettingsGeneral() {
   const { canManageApp, canManageSettings } = useAppPermissions();
   const [isSaving, setIsSaving] = useState(false);
   const [isRenamingApp, setIsRenamingApp] = useState(false);
+  const [copiedAppId, setCopiedAppId] = useState(false);
 
   const appSettings = useQuery(
     api.apps.getAppSettings,
@@ -43,6 +55,7 @@ export default function SettingsGeneral() {
 
   const updateSettings = useMutation(api.apps.updateAppSettings);
   const updateAppName = useMutation(api.apps.updateAppName);
+  const updateAppMode = useMutation(api.apps.updateAppMode);
 
   // Form state
   const [appName, setAppName] = useState<string>("");
@@ -93,6 +106,19 @@ export default function SettingsGeneral() {
     }
   };
 
+  const handleCopyAppId = async () => {
+    if (!selectedApp?._id) return;
+    
+    try {
+      await navigator.clipboard.writeText(selectedApp._id);
+      setCopiedAppId(true);
+      setTimeout(() => setCopiedAppId(false), 2000);
+      toast.success("App ID copied to clipboard");
+    } catch (err) {
+      toast.error("Failed to copy App ID");
+    }
+  };
+
   const handleSave = async () => {
     if (!selectedApp?._id || !hasChanges) return;
 
@@ -136,16 +162,37 @@ export default function SettingsGeneral() {
       {/* App Name */}
       <Card className="border-0 shadow-sm bg-white">
         <CardHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-purple-50 rounded-lg">
-              <Tag className="h-5 w-5 text-purple-600" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-50 rounded-lg">
+                <Tag className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-semibold">App Name</CardTitle>
+                <CardDescription className="text-slate-500">
+                  Update your app's display name
+                </CardDescription>
+              </div>
             </div>
-            <div>
-              <CardTitle className="text-lg font-semibold">App Name</CardTitle>
-              <CardDescription className="text-slate-500">
-                Update your app's display name
-              </CardDescription>
-            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCopyAppId}
+              className="h-8 px-3 text-xs gap-2"
+              title="Copy App ID"
+            >
+              {copiedAppId ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                  <span className="text-green-600">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Copy App ID</span>
+                </>
+              )}
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -191,6 +238,80 @@ export default function SettingsGeneral() {
                     </>
                   )}
                 </Button>
+              </div>
+            </div>
+          </PermissionAwareField>
+        </CardContent>
+      </Card>
+
+      {/* App Mode - Live/Test Toggle */}
+      <Card className="border-0 shadow-sm bg-white">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 rounded-lg">
+              <TestTube className="h-5 w-5 text-indigo-600" />
+            </div>
+            <div>
+              <CardTitle className="text-lg font-semibold">App Mode</CardTitle>
+              <CardDescription className="text-slate-500">
+                Toggle between test and live mode
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <PermissionAwareField
+            canEdit={canManageApp}
+            message={getPermissionMessage(["owner", "admin"])}
+          >
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-slate-700">
+                      {appSettings?.mode === "live" ? "Live Mode" : "Test Mode"}
+                    </label>
+                    <span
+                      className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                        appSettings?.mode === "live"
+                          ? "bg-green-100 text-green-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {appSettings?.mode === "live" ? "Live" : "Test"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {appSettings?.mode === "live"
+                      ? "Your app is in live mode. Real transactions will be processed."
+                      : "Your app is in test mode. Use this for development and testing."}
+                  </p>
+                </div>
+                <Switch
+                  checked={appSettings?.mode === "live"}
+                  onCheckedChange={async (checked) => {
+                    if (!selectedApp?._id || !canManageApp) return;
+
+                    const newMode = checked ? "live" : "test";
+                    try {
+                      await updateAppMode({
+                        appId: selectedApp._id,
+                        mode: newMode,
+                      });
+                      toast.success(`App mode changed to ${newMode}`, {
+                        description:
+                          newMode === "live"
+                            ? "Your app is now processing real transactions"
+                            : "Your app is now in test mode for development",
+                      });
+                    } catch (error: any) {
+                      toast.error("Failed to change app mode", {
+                        description: error.message || "Please try again",
+                      });
+                    }
+                  }}
+                  disabled={!canManageApp}
+                />
               </div>
             </div>
           </PermissionAwareField>

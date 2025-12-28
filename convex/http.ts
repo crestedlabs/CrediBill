@@ -240,7 +240,7 @@ http.route({
       const { appId, apiKeyId } = auth;
 
       const body = await request.json();
-      const { customerId, planId, startDate, trialDays } = body;
+      const { customerId, planId, startDate } = body;
 
       if (!customerId || !planId) {
         return new Response(
@@ -258,7 +258,6 @@ http.route({
           customerId,
           planId,
           startDate,
-          trialDays,
         }
       );
 
@@ -389,17 +388,19 @@ async function validateRequest(req: Request): Promise<WebhookEvent | null> {
  * Signature: verif-hash header with SHA256 HMAC
  */
 http.route({
-  path: "/webhooks/flutterwave",
+  path: "/webhooks/flutterwave/{appId}",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const payload = await request.text();
     const signature = request.headers.get("verif-hash") || "";
+    const appId = request.url.split("/").pop() as Id<"apps">;
 
     const result = await ctx.runAction(
       internal.webhookActions.handleFlutterwaveWebhook,
       {
         payload,
         signature,
+        appId,
       }
     );
 
@@ -415,17 +416,19 @@ http.route({
  * Signature: X-Signature header with HMAC-SHA256
  */
 http.route({
-  path: "/webhooks/pawapay",
+  path: "/webhooks/pawapay/{appId}",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const payload = await request.text();
     const signature = request.headers.get("x-signature") || "";
+    const appId = request.url.split("/").pop() as Id<"apps">;
 
     const result = await ctx.runAction(
       internal.webhookActions.handlePawapayWebhook,
       {
         payload,
         signature,
+        appId,
       }
     );
 
@@ -441,15 +444,17 @@ http.route({
  * Uses OrderTrackingId and OrderMerchantReference for verification
  */
 http.route({
-  path: "/webhooks/pesapal",
+  path: "/webhooks/pesapal/{appId}",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const payload = await request.text();
+    const appId = request.url.split("/").pop() as Id<"apps">;
 
     const result = await ctx.runAction(
       internal.webhookActions.handlePesapalWebhook,
       {
         payload,
+        appId,
       }
     );
 
@@ -465,15 +470,17 @@ http.route({
  * Uses CompanyToken for verification
  */
 http.route({
-  path: "/webhooks/dpo",
+  path: "/webhooks/dpo/{appId}",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     const payload = await request.text();
+    const appId = request.url.split("/").pop() as Id<"apps">;
 
     const result = await ctx.runAction(
       internal.webhookActions.handleDpoWebhook,
       {
         payload,
+        appId,
       }
     );
 

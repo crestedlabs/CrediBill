@@ -37,7 +37,6 @@ export function SubscribeCustomerForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     planId: "",
-    trialDays: "0",
     startDate: new Date().toISOString().split("T")[0], // Today's date
   });
 
@@ -69,14 +68,12 @@ export function SubscribeCustomerForm({
 
     try {
       const startDate = new Date(formData.startDate).getTime();
-      const trialDays = parseInt(formData.trialDays);
 
       await createSubscriptionMutation({
         appId,
         customerId,
         planId: formData.planId as Id<"plans">,
         startDate,
-        trialDays: trialDays > 0 ? trialDays : undefined,
       });
 
       const selectedPlan = activePlans.find(
@@ -89,7 +86,6 @@ export function SubscribeCustomerForm({
       // Reset form
       setFormData({
         planId: "",
-        trialDays: "0",
         startDate: new Date().toISOString().split("T")[0],
       });
 
@@ -166,28 +162,6 @@ export function SubscribeCustomerForm({
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        {/* Trial Days */}
-        <div className="space-y-2">
-          <Label htmlFor="trialDays" className="text-sm font-medium">
-            Trial Days
-          </Label>
-          <Input
-            id="trialDays"
-            type="number"
-            min="0"
-            placeholder="0"
-            value={formData.trialDays}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, trialDays: e.target.value }))
-            }
-            disabled={isSubmitting}
-            className="h-10"
-          />
-          <p className="text-xs text-slate-500">
-            Set to 0 for no trial period. Subscription starts immediately.
-          </p>
         </div>
 
         {/* Start Date */}

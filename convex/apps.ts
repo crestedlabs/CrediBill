@@ -88,13 +88,17 @@ export const getAppSettings = query({
     return {
       _id: app._id,
       name: app.name,
+      mode: app.mode ?? "test", // Default to test mode if not set
+      paymentProviderId: app.paymentProviderId, // Payment provider ID (immutable)
       defaultCurrency: app.defaultCurrency,
       timezone: app.timezone,
       language: app.language,
       defaultPaymentMethod: app.defaultPaymentMethod,
       retryPolicy: app.retryPolicy,
-      defaultTrialLength: app.defaultTrialLength,
       gracePeriod: app.gracePeriod,
+      // Webhook configuration
+      webhookUrl: app.webhookUrl,
+      webhookSecret: app.webhookSecret,
       // Advanced settings with defaults
       allowPlanDowngrades: app.allowPlanDowngrades ?? true,
       requireBillingAddress: app.requireBillingAddress ?? false,
@@ -109,6 +113,7 @@ export const createApp = mutation({
     name: v.string(),
     description: v.optional(v.string()),
     organizationId: v.id("organizations"),
+    paymentProviderId: v.id("providerCatalog"),
     defaultCurrency: v.union(
       v.literal("ugx"),
       v.literal("kes"),
@@ -128,7 +133,6 @@ export const createApp = mutation({
       v.literal("manual"),
       v.literal("none")
     ),
-    defaultTrialLength: v.optional(v.number()), // DEPRECATED: Use plan-level trialDays
     gracePeriod: v.number(),
   },
   handler: async (ctx, args) => {
@@ -155,13 +159,6 @@ export const createApp = mutation({
     }
 
     // Validate numbers
-    if (
-      args.defaultTrialLength &&
-      (args.defaultTrialLength < 0 || args.defaultTrialLength > 365)
-    ) {
-      throw new Error("Trial length must be between 0 and 365 days");
-    }
-
     if (args.gracePeriod < 0 || args.gracePeriod > 30) {
       throw new Error("Grace period must be between 0 and 30 days");
     }
@@ -173,12 +170,12 @@ export const createApp = mutation({
       organizationId: args.organizationId,
       status: "active",
       mode: "test", // Start in test mode by default
+      paymentProviderId: args.paymentProviderId, // IMMUTABLE - cannot be changed after creation
       defaultCurrency: args.defaultCurrency,
       timezone: args.timezone || "eat", // DEPRECATED: fallback to EAT for backward compatibility
       language: args.language,
       defaultPaymentMethod: args.defaultPaymentMethod || "momo", // DEPRECATED: fallback for backward compatibility
       retryPolicy: args.retryPolicy,
-      defaultTrialLength: args.defaultTrialLength || undefined, // DEPRECATED
       gracePeriod: args.gracePeriod,
     });
 
@@ -216,7 +213,6 @@ export const updateAppSettings = mutation({
     retryPolicy: v.optional(
       v.union(v.literal("automatic"), v.literal("manual"), v.literal("none"))
     ),
-    defaultTrialLength: v.optional(v.number()),
     gracePeriod: v.optional(v.number()),
     // Advanced settings
     allowPlanDowngrades: v.optional(v.boolean()),
@@ -266,13 +262,6 @@ export const updateAppSettings = mutation({
     }
     if (args.retryPolicy !== undefined) {
       updates.retryPolicy = args.retryPolicy;
-    }
-    if (args.defaultTrialLength !== undefined) {
-      // Validate trial length
-      if (args.defaultTrialLength < 0 || args.defaultTrialLength > 365) {
-        throw new Error("Trial length must be between 0 and 365 days");
-      }
-      updates.defaultTrialLength = args.defaultTrialLength;
     }
     if (args.gracePeriod !== undefined) {
       // Validate grace period
@@ -367,6 +356,47 @@ export const updateAppName = mutation({
   },
 });
 
+export const updateAppMode = mutation({
+  args: {
+    appId: v.id("apps"),
+    mode: v.union(v.literal("live"), v.literal("test")),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    // Get the app
+    const app = await ctx.db.get(args.appId);
+    if (!app) throw new Error("App not found");
+
+    // Verify user is owner or admin of the organization
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) {
+      throw new Error(
+        "Access denied: You are not a member of this organization"
+      );
+    }
+
+    if (membership.role !== "owner" && membership.role !== "admin") {
+      throw new Error("Only owners and admins can change app mode");
+    }
+
+    // Update the app mode
+    await ctx.db.patch(args.appId, { mode: args.mode });
+
+    return {
+      success: true,
+      message: `App mode changed to ${args.mode}`,
+    };
+  },
+});
+
 export const deleteApp = mutation({
   args: {
     appId: v.id("apps"),
@@ -417,13 +447,13 @@ export const deleteApp = mutation({
       await ctx.db.delete(webhook._id);
     }
 
-    // 3. Delete Payment Providers
-    const paymentProviders = await ctx.db
-      .query("paymentProviders")
+    // 3. Delete Payment Provider Credentials
+    const credentials = await ctx.db
+      .query("paymentProviderCredentials")
       .withIndex("by_app", (q) => q.eq("appId", appId))
       .collect();
-    for (const provider of paymentProviders) {
-      await ctx.db.delete(provider._id);
+    for (const cred of credentials) {
+      await ctx.db.delete(cred._id);
     }
 
     // 4. Delete Payment Transactions
@@ -516,7 +546,7 @@ export const deleteApp = mutation({
       deletedCounts: {
         apiKeys: apiKeys.length,
         webhooks: webhooks.length,
-        paymentProviders: paymentProviders.length,
+        credentials: credentials.length,
         paymentTransactions: paymentTransactions.length,
         webhookLogs: webhookLogs.length,
         outgoingWebhookLogs: outgoingWebhookLogs.length,
@@ -528,5 +558,96 @@ export const deleteApp = mutation({
         customers: customers.length,
       },
     };
+  },
+});
+
+/**
+ * Update webhook configuration for an app
+ */
+export const updateWebhookConfig = mutation({
+  args: {
+    appId: v.id("apps"),
+    webhookUrl: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    const app = await ctx.db.get(args.appId);
+    if (!app) throw new Error("App not found");
+
+    // Verify user has access
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership || membership.role === "viewer")
+      throw new Error("Insufficient permissions");
+
+    // Generate webhook secret if not exists or if URL changed
+    let webhookSecret = app.webhookSecret;
+    if (!webhookSecret || args.webhookUrl !== app.webhookUrl) {
+      // Generate a secure random secret
+      webhookSecret = `whsec_${Array.from({ length: 32 }, () => 
+        Math.random().toString(36).charAt(2)
+      ).join('')}`;
+    }
+
+    // Update webhook config
+    await ctx.db.patch(args.appId, {
+      webhookUrl: args.webhookUrl,
+      webhookSecret,
+    });
+
+    return { 
+      success: true,
+      webhookSecret // Return the secret so UI can display it
+    };
+  },
+});
+
+/**
+ * Test webhook by sending a test event
+ */
+export const testWebhook = mutation({
+  args: {
+    appId: v.id("apps"),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) throw new Error("Unauthorized");
+
+    const app = await ctx.db.get(args.appId);
+    if (!app) throw new Error("App not found");
+
+    if (!app.webhookUrl) {
+      throw new Error("No webhook URL configured");
+    }
+
+    // Verify user has access
+    const membership = await ctx.db
+      .query("organizationMembers")
+      .withIndex("by_org_user", (q) =>
+        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+      )
+      .unique();
+
+    if (!membership) throw new Error("Access denied");
+
+    // Queue a test webhook
+    const { internal } = await import("./_generated/api");
+    await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+      appId: args.appId,
+      event: "test.webhook",
+      payload: {
+        message: "This is a test webhook",
+        timestamp: Date.now(),
+      },
+    });
+
+    return { success: true };
   },
 });

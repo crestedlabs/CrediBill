@@ -237,7 +237,10 @@ function SubscriptionsManager() {
                         </th>
                         <th className="px-4 py-3">Status</th>
                         <th className="px-4 py-3 hidden lg:table-cell">
-                          Next Billing
+                          Started
+                        </th>
+                        <th className="px-4 py-3 hidden xl:table-cell">
+                          Next Payment
                         </th>
                         <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
@@ -249,13 +252,30 @@ function SubscriptionsManager() {
                         const customerName = subscription.customer?.first_name
                           ? `${subscription.customer.first_name}${subscription.customer.last_name ? ` ${subscription.customer.last_name}` : ""}`
                           : subscription.customer?.email || "Unknown";
-                        const nextBilling = new Date(
-                          subscription.currentPeriodEnd
-                        ).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        });
+
+                        const formatDate = (timestamp: number | undefined) => {
+                          if (!timestamp) return "—";
+                          return new Date(timestamp).toLocaleDateString(
+                            "en-US",
+                            {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            }
+                          );
+                        };
+
+                        const trialEnds =
+                          subscription.status === "trialing" &&
+                          subscription.trialEndsAt
+                            ? formatDate(subscription.trialEndsAt)
+                            : "—";
+
+                        const nextPayment = subscription.nextPaymentDate
+                          ? formatDate(subscription.nextPaymentDate)
+                          : formatDate(subscription.currentPeriodEnd);
+
+                        const startedDate = formatDate(subscription.startDate);
 
                         return (
                           <tr
@@ -287,7 +307,20 @@ function SubscriptionsManager() {
                               </Badge>
                             </td>
                             <td className="px-4 py-4 text-xs text-slate-600 hidden lg:table-cell">
-                              {nextBilling}
+                              {startedDate}
+                            </td>
+                            <td className="px-4 py-4 text-xs hidden xl:table-cell">
+                              <div>
+                                <div className="font-medium text-slate-900">
+                                  {nextPayment}
+                                </div>
+                                {status === "trialing" &&
+                                  subscription.trialEndsAt && (
+                                    <div className="text-xs text-amber-600 mt-0.5">
+                                      Trial ends
+                                    </div>
+                                  )}
+                              </div>
                             </td>
                             <td className="px-4 py-4 text-right">
                               <SubscriptionActionMenu

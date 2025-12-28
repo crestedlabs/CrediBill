@@ -111,13 +111,26 @@ export const updateTransactionFromWebhook = internalMutation({
           : transaction.completedAt,
     });
 
-    // If successful, mark invoice as paid
+    // If successful, mark invoice as paid and activate subscription
     if (args.status === "success" && transaction.invoiceId) {
       const invoice = await ctx.db.get(transaction.invoiceId);
       if (invoice && invoice.status !== "paid") {
         await ctx.db.patch(transaction.invoiceId, {
           status: "paid",
         });
+      }
+      
+      // Activate subscription if it's trialing
+      if (transaction.subscriptionId) {
+        const subscription = await ctx.db.get(transaction.subscriptionId);
+        if (subscription && subscription.status === "trialing") {
+          const now = Date.now();
+          await ctx.db.patch(transaction.subscriptionId, {
+            status: "active",
+            lastPaymentDate: now,
+            failedPaymentAttempts: 0, // Reset failure count
+          });
+        }
       }
     }
 
@@ -135,6 +148,22 @@ export const updateTransactionFromWebhook = internalMutation({
           await ctx.db.patch(transaction.subscriptionId, {
             status: "past_due",
           });
+          
+          // Send subscription.past_due webhook
+          const updatedSubscription = await ctx.db.get(transaction.subscriptionId);
+          const customer = await ctx.db.get(subscription.customerId);
+          if (updatedSubscription && customer) {
+            await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+              appId: subscription.appId,
+              event: "subscription.past_due",
+              payload: {
+                subscription: updatedSubscription,
+                customer,
+                failed_attempts: failureCount,
+                last_failure_reason: args.failureReason || "Payment failed",
+              },
+            });
+          }
         }
       }
     }
