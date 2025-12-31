@@ -108,7 +108,7 @@ export default function SettingsGeneral() {
 
   const handleCopyAppId = async () => {
     if (!selectedApp?._id) return;
-    
+
     try {
       await navigator.clipboard.writeText(selectedApp._id);
       setCopiedAppId(true);
@@ -168,7 +168,9 @@ export default function SettingsGeneral() {
                 <Tag className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <CardTitle className="text-lg font-semibold">App Name</CardTitle>
+                <CardTitle className="text-lg font-semibold">
+                  App Name
+                </CardTitle>
                 <CardDescription className="text-slate-500">
                   Update your app's display name
                 </CardDescription>

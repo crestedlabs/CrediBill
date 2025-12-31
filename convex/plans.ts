@@ -1,7 +1,211 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import {
+  mutation,
+  query,
+  internalMutation,
+  internalQuery,
+} from "./_generated/server";
 import { getCurrentUser } from "./users";
 import { internal } from "./_generated/api";
+import { ConvexError } from "convex/values";
+
+// ============================================================================
+// INTERNAL API-KEY-AUTHENTICATED VERSIONS
+// ============================================================================
+
+/**
+ * Get plans via API key (no Clerk auth required)
+ */
+export const getPlansByAppInternal = internalQuery({
+  args: {
+    appId: v.id("apps"),
+  },
+  handler: async (ctx, args) => {
+    const plans = await ctx.db
+      .query("plans")
+      .withIndex("by_app", (q) => q.eq("appId", args.appId))
+      .collect();
+
+    return plans;
+  },
+});
+
+/**
+ * Create plan via API key (no Clerk auth required)
+ */
+export const createPlanInternal = internalMutation({
+  args: {
+    appId: v.id("apps"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    pricingModel: v.union(
+      v.literal("flat"),
+      v.literal("usage"),
+      v.literal("hybrid")
+    ),
+    baseAmount: v.optional(v.number()),
+    currency: v.string(),
+    interval: v.union(
+      v.literal("monthly"),
+      v.literal("quarterly"),
+      v.literal("yearly"),
+      v.literal("one-time")
+    ),
+    trialDays: v.optional(v.number()),
+    usageMetric: v.optional(v.string()),
+    unitPrice: v.optional(v.number()),
+    freeUnits: v.optional(v.number()),
+    status: v.union(v.literal("active"), v.literal("archived")),
+    mode: v.union(v.literal("live"), v.literal("test")),
+  },
+  handler: async (ctx, args) => {
+    const app = await ctx.db.get(args.appId);
+    if (!app) throw new ConvexError("App not found");
+
+    if (args.name.length < 3) {
+      throw new ConvexError("Plan name must be at least 3 characters");
+    }
+
+    if (args.pricingModel === "flat" && !args.baseAmount) {
+      throw new ConvexError("Base amount is required for flat pricing");
+    }
+
+    if (args.pricingModel === "usage" || args.pricingModel === "hybrid") {
+      if (!args.usageMetric) {
+        throw new ConvexError(
+          "Usage metric is required for usage-based pricing"
+        );
+      }
+      if (!args.unitPrice) {
+        throw new ConvexError("Unit price is required for usage-based pricing");
+      }
+    }
+
+    const planId = await ctx.db.insert("plans", {
+      name: args.name,
+      description: args.description,
+      organizationId: app.organizationId,
+      appId: args.appId,
+      pricingModel: args.pricingModel,
+      baseAmount: args.baseAmount,
+      currency: args.currency as "UGX" | "KES" | "RWF" | "TZS" | "USD",
+      interval: args.interval,
+      trialDays: args.trialDays,
+      usageMetric: args.usageMetric,
+      unitPrice: args.unitPrice,
+      freeUnits: args.freeUnits,
+      status: args.status,
+      mode: args.mode,
+    });
+
+    const plan = await ctx.db.get(planId);
+    if (plan) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: args.appId,
+        event: "plan.created",
+        payload: { plan },
+      });
+    }
+
+    return planId;
+  },
+});
+
+/**
+ * Update plan via API key (no Clerk auth required)
+ */
+export const updatePlanInternal = internalMutation({
+  args: {
+    planId: v.id("plans"),
+    appId: v.id("apps"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    status: v.optional(v.union(v.literal("active"), v.literal("archived"))),
+    baseAmount: v.optional(v.number()),
+    unitPrice: v.optional(v.number()),
+    freeUnits: v.optional(v.number()),
+    trialDays: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) throw new ConvexError("Plan not found");
+
+    if (plan.appId !== args.appId) {
+      throw new ConvexError("Plan does not belong to this app");
+    }
+
+    const updates: any = {};
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.description !== undefined) updates.description = args.description;
+    if (args.status !== undefined) updates.status = args.status;
+    if (args.baseAmount !== undefined) updates.baseAmount = args.baseAmount;
+    if (args.unitPrice !== undefined) updates.unitPrice = args.unitPrice;
+    if (args.freeUnits !== undefined) updates.freeUnits = args.freeUnits;
+    if (args.trialDays !== undefined) updates.trialDays = args.trialDays;
+
+    await ctx.db.patch(args.planId, updates);
+
+    const updatedPlan = await ctx.db.get(args.planId);
+    if (updatedPlan) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: args.appId,
+        event: "plan.updated",
+        payload: { plan: updatedPlan },
+      });
+    }
+
+    return args.planId;
+  },
+});
+
+/**
+ * Delete plan via API key (no Clerk auth required)
+ */
+export const deletePlanInternal = internalMutation({
+  args: {
+    planId: v.id("plans"),
+    appId: v.id("apps"),
+  },
+  handler: async (ctx, args) => {
+    const plan = await ctx.db.get(args.planId);
+    if (!plan) throw new ConvexError("Plan not found");
+
+    if (plan.appId !== args.appId) {
+      throw new ConvexError("Plan does not belong to this app");
+    }
+
+    const activeSubscriptions = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_plan", (q) => q.eq("planId", args.planId))
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "active"),
+          q.eq(q.field("status"), "trialing")
+        )
+      )
+      .first();
+
+    if (activeSubscriptions) {
+      throw new ConvexError(
+        "Cannot delete plan with active subscriptions. Archive it instead."
+      );
+    }
+
+    await ctx.db.delete(args.planId);
+
+    await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+      appId: args.appId,
+      event: "plan.deleted",
+      payload: { plan },
+    });
+
+    return args.planId;
+  },
+});
+
+// ============================================================================
+// CLERK-AUTHENTICATED VERSIONS (for dashboard UI)
+// ============================================================================
 
 // Get plan statistics (subscribers and revenue)
 export const getPlanStats = query({

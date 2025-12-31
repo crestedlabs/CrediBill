@@ -176,7 +176,7 @@ Deposit URL: https://api.pawapay.io
 #### 3. Configure Webhook
 
 1. Contact PawaPay support
-2. Provide webhook URL: `https://your-credibill-instance.com/webhooks/pawapay`
+2. Provide webhook URL: `https://your-credibill-instance.com/webhooks/pawapay?appId={your-app-id}`
 3. Request webhook secret for signature verification
 4. PawaPay will configure on their end
 

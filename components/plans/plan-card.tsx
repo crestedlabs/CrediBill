@@ -27,7 +27,7 @@ export function PlanCard({ plan }: PlanCardProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy plan ID:', err);
+      console.error("Failed to copy plan ID:", err);
     }
   };
 

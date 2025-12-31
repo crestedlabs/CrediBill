@@ -3,6 +3,7 @@
 ## What Was Removed
 
 ### ❌ Payment Initiation Logic (Deleted)
+
 - `convex/payments.ts` - Payment initiation functions
 - `convex/paymentsNode.ts` - Node.js payment adapter integration
 - `convex/lib/paymentAdapters/` - All payment adapter implementations
@@ -10,6 +11,7 @@
   - `types.ts`, `factory.ts`
 
 ### ❌ Payment Initiation Functions (Removed)
+
 - `initiateSubscriptionPayment()` - Main payment initiation
 - `processTrialExpiration()` - Auto-charge trial users
 - `processRecurringPayment()` - Auto-charge renewals
@@ -18,19 +20,25 @@
 ## What Was Updated
 
 ### ✅ Incoming Webhook System (Enhanced)
+
 **Files:** `convex/webhookActions*.ts`
+
 - **Before:** Sent `payment.success` webhooks
 - **After:** Sends `subscription.activated` webhooks
 - **Why:** More semantic - tells clients subscription is now active
 
 ### ✅ Subscription Activation (Enhanced)
+
 **Files:** `convex/webhookMutations.ts`
+
 - **Before:** Only marked invoice as paid
 - **After:** Also activates subscription when payment succeeds
 - **Logic:** `trialing` → `active` on successful payment
 
 ### ✅ Cron Jobs (Refactored)
+
 **Files:** `convex/cronHandlers.ts`
+
 - **Before:** Tried to initiate payments automatically
 - **After:** Sends notification webhooks to clients
 - **Events:**
@@ -38,35 +46,40 @@
   - `payment.due` - When recurring payment is due
 
 ### ✅ Outgoing Webhooks (Complete)
+
 **Files:** `convex/webhookDelivery.ts`, `components/settings/settings-webhooks-section.tsx`
+
 - Added new webhook events documentation
 - Updated UI to show all event types
 
 ## Current Webhook Events
 
 ### Outgoing (CrediBill → Clients)
-| Event | Trigger | Purpose |
-|-------|---------|---------|
-| `subscription.created` | New subscription | Inform client about new subscription |
-| `subscription.activated` | Payment successful | Activate user's account/features |
-| `subscription.renewed` | Billing period renewed | Extend access for new period |
-| `subscription.cancelled` | Subscription ended | Deactivate user's account |
-| `subscription.plan_changed` | Plan upgrade/downgrade | Update user's feature access |
-| `subscription.trial_expired` | Trial period ended | Collect first payment |
-| `payment.due` | Recurring payment needed | Collect renewal payment |
-| `payment.failed` | Payment attempt failed | Handle failed payment |
+
+| Event                        | Trigger                  | Purpose                              |
+| ---------------------------- | ------------------------ | ------------------------------------ |
+| `subscription.created`       | New subscription         | Inform client about new subscription |
+| `subscription.activated`     | Payment successful       | Activate user's account/features     |
+| `subscription.renewed`       | Billing period renewed   | Extend access for new period         |
+| `subscription.cancelled`     | Subscription ended       | Deactivate user's account            |
+| `subscription.plan_changed`  | Plan upgrade/downgrade   | Update user's feature access         |
+| `subscription.trial_expired` | Trial period ended       | Collect first payment                |
+| `payment.due`                | Recurring payment needed | Collect renewal payment              |
+| `payment.failed`             | Payment attempt failed   | Handle failed payment                |
 
 ### Incoming (Payment Providers → CrediBill)
-| Provider | Event | Action |
-|----------|-------|---------|
-| Flutterwave | `charge.completed` | Activate subscription |
-| PawaPay | `payment.completed` | Activate subscription |
-| Pesapal | `COMPLETED` | Activate subscription |
-| DPO | `payment.success` | Activate subscription |
+
+| Provider    | Event               | Action                |
+| ----------- | ------------------- | --------------------- |
+| Flutterwave | `charge.completed`  | Activate subscription |
+| PawaPay     | `payment.completed` | Activate subscription |
+| Pesapal     | `COMPLETED`         | Activate subscription |
+| DPO         | `payment.success`   | Activate subscription |
 
 ## Complete Payment Flow
 
 ### 1. **Subscription Creation**
+
 ```javascript
 // Client creates subscription via API or dashboard
 POST /api/subscriptions
@@ -96,21 +109,22 @@ POST https://client-app.com/webhooks/credibill
 ```
 
 ### 2. **Payment Collection (Client's Responsibility)**
+
 ```javascript
 // Client's webhook handler
-app.post('/webhooks/credibill', (req, res) => {
+app.post("/webhooks/credibill", (req, res) => {
   const { event, data } = req.body;
-  
+
   switch (event) {
-    case 'subscription.created':
+    case "subscription.created":
       // If trialing, schedule payment collection
-      if (data.subscription.status === 'trialing') {
+      if (data.subscription.status === "trialing") {
         schedulePaymentCollection(data.subscription.trial_ends_at);
       }
       break;
-      
-    case 'subscription.trial_expired':
-    case 'payment.due':
+
+    case "subscription.trial_expired":
+    case "payment.due":
       // Collect payment from user
       collectPayment(data.customer, data.amount_due);
       break;
@@ -121,18 +135,19 @@ app.post('/webhooks/credibill', (req, res) => {
 async function collectPayment(customer, amount) {
   const payment = await flutterwave.initiate({
     amount: amount,
-    currency: 'UGX',
+    currency: "UGX",
     customer: customer,
     tx_ref: `sub_${subscription.id}_${Date.now()}`, // Link to subscription
-    callback_url: 'https://client-app.com/payment-callback'
+    callback_url: "https://client-app.com/payment-callback",
   });
-  
+
   // Redirect user to payment page
   return payment.link;
 }
 ```
 
 ### 3. **Payment Processing**
+
 ```javascript
 // User completes payment
 // Flutterwave sends webhook to BOTH:
@@ -160,6 +175,7 @@ POST https://client-app.com/webhooks/flutterwave
 ```
 
 ### 4. **Subscription Activation Confirmation**
+
 ```javascript
 // CrediBill sends final confirmation
 POST https://client-app.com/webhooks/credibill
@@ -180,11 +196,11 @@ POST https://client-app.com/webhooks/credibill
 // Client activates user's account
 app.post('/webhooks/credibill', (req, res) => {
   const { event, data } = req.body;
-  
+
   if (event === 'subscription.activated') {
     // Activate user's premium features
     await activateUserAccount(data.customer_id);
-    
+
     // Send welcome email
     await sendWelcomeEmail(data.customer_id);
   }
@@ -196,6 +212,7 @@ app.post('/webhooks/credibill', (req, res) => {
 ### For Clients Setting Up CrediBill Integration
 
 #### 1. **Configure App in CrediBill Dashboard**
+
 ```javascript
 // In CrediBill settings
 {
@@ -206,13 +223,14 @@ app.post('/webhooks/credibill', (req, res) => {
 ```
 
 #### 2. **Configure Payment Provider Dashboard**
+
 ```
 Flutterwave Dashboard:
 - Webhook URL: https://credibill.com/webhooks/flutterwave
 - Events: charge.completed, transfer.completed
 
 PawaPay Dashboard:
-- Webhook URL: https://credibill.com/webhooks/pawapay
+- Webhook URL: https://credibill.com/webhooks/pawapay?appId={appId}
 - Events: payment.completed, payment.failed
 
 Pesapal Dashboard:
@@ -224,34 +242,35 @@ DPO Dashboard:
 ```
 
 #### 3. **Implement Webhook Handlers**
+
 ```javascript
 // Handle CrediBill webhooks
-app.post('/webhooks/credibill', (req, res) => {
+app.post("/webhooks/credibill", (req, res) => {
   // Verify signature
-  const signature = req.headers['x-webhook-signature'];
+  const signature = req.headers["x-webhook-signature"];
   if (!verifySignature(req.body, signature, WEBHOOK_SECRET)) {
-    return res.status(401).send('Invalid signature');
+    return res.status(401).send("Invalid signature");
   }
-  
+
   const { event, data } = req.body;
-  
+
   switch (event) {
-    case 'subscription.created':
+    case "subscription.created":
       handleSubscriptionCreated(data);
       break;
-    case 'subscription.activated':
+    case "subscription.activated":
       handleSubscriptionActivated(data);
       break;
-    case 'subscription.trial_expired':
-    case 'payment.due':
+    case "subscription.trial_expired":
+    case "payment.due":
       handlePaymentDue(data);
       break;
-    case 'payment.failed':
+    case "payment.failed":
       handlePaymentFailed(data);
       break;
   }
-  
-  res.status(200).send('OK');
+
+  res.status(200).send("OK");
 });
 ```
 
@@ -260,6 +279,7 @@ app.post('/webhooks/credibill', (req, res) => {
 **CrediBill is now correctly architected as a Subscription Tracking Service:**
 
 ### ✅ What CrediBill Does:
+
 - Tracks subscription states and billing periods
 - Receives payment confirmations from providers
 - Sends real-time notifications to clients
@@ -267,6 +287,7 @@ app.post('/webhooks/credibill', (req, res) => {
 - Manages subscription lifecycle
 
 ### ❌ What CrediBill Doesn't Do:
+
 - Initiate payments
 - Store credit card details
 - Process transactions
@@ -274,11 +295,13 @@ app.post('/webhooks/credibill', (req, res) => {
 - Collect money from end users
 
 ### 🔄 Perfect Separation of Concerns:
+
 - **CrediBill:** Subscription management and notifications
 - **Clients:** Payment collection and user experience
 - **Payment Providers:** Transaction processing
 
 This architecture gives you the best of both worlds:
+
 1. **Centralized subscription tracking** across all your clients
 2. **Clients retain full control** over their payment flow and user experience
 3. **Real-time synchronization** via webhooks

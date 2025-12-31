@@ -50,6 +50,7 @@
 ## ✅ What You HAVE (Current State)
 
 ### 1. **Admin Dashboard** ✅
+
 - Organization management
 - App creation & configuration
 - Payment provider setup
@@ -61,29 +62,36 @@
 - Webhook configuration
 
 ### 2. **API Endpoints** ✅
+
 You have these working REST APIs:
 
 #### Customer Management
+
 - `POST /api/customers` - Create customer
 - `GET /api/customers` - List/Get customers
 
-#### Subscription Management  
+#### Subscription Management
+
 - `POST /api/subscriptions` - Create subscription
 - `GET /api/subscriptions` - List subscriptions
 
 #### Usage Tracking
+
 - `POST /api/usage` - Record usage events
 
 #### Invoicing
+
 - `GET /api/invoices` - List invoices
 
 #### Payment Webhooks
+
 - `POST /webhooks/flutterwave` - Handle Flutterwave payments
-- `POST /webhooks/pawapay` - Handle PawaPay payments
+- `POST /webhooks/pawapay?appId={appId}` - Handle PawaPay payments
 - `POST /webhooks/pesapal` - Handle Pesapal payments
 - `POST /webhooks/dpo` - Handle DPO payments
 
 ### 3. **Backend Logic** ✅
+
 - Subscription lifecycle management
 - Trial period handling
 - Proration for upgrades
@@ -100,6 +108,7 @@ You have these working REST APIs:
 **Problem:** Your API creates subscriptions but doesn't initiate payment!
 
 **Current Flow:**
+
 ```
 Client calls: POST /api/subscriptions
 CrediBill creates subscription → Status: "trialing" or "active"
@@ -107,6 +116,7 @@ CrediBill creates subscription → Status: "trialing" or "active"
 ```
 
 **What You Need:**
+
 ```javascript
 // POST /api/subscriptions should return:
 {
@@ -118,6 +128,7 @@ CrediBill creates subscription → Status: "trialing" or "active"
 ```
 
 **Implementation Needed:**
+
 - Integrate with payment provider's SDK
 - Generate checkout/payment links
 - Return checkout URL to client
@@ -126,6 +137,7 @@ CrediBill creates subscription → Status: "trialing" or "active"
 ### 2. **Customer Portal** ❌
 
 **What's Missing:**
+
 - Hosted page where end users can:
   - View their subscription
   - Update payment method
@@ -134,6 +146,7 @@ CrediBill creates subscription → Status: "trialing" or "active"
   - View usage
 
 **Example:**
+
 ```
 https://credibill.com/portal/cust_123?token=xyz
 ```
@@ -143,6 +156,7 @@ https://credibill.com/portal/cust_123?token=xyz
 **Problem:** Your clients don't know when subscriptions activate!
 
 **What You Need:**
+
 - Send webhooks to YOUR CLIENTS when:
   - Subscription activated
   - Payment succeeded
@@ -151,6 +165,7 @@ https://credibill.com/portal/cust_123?token=xyz
   - Invoice created
 
 **Schema:**
+
 ```typescript
 // webhook/customers.ts
 export const sendWebhookToClient = internalMutation({
@@ -166,6 +181,7 @@ export const sendWebhookToClient = internalMutation({
 ### 4. **Payment Method Management** ❌
 
 Customers need to:
+
 - Add payment methods
 - Update expired cards
 - Set default payment method
@@ -174,6 +190,7 @@ Customers need to:
 ### 5. **Dunning Management** ❌
 
 Handle failed payments:
+
 - Retry failed payments (3 attempts)
 - Send reminder emails
 - Grace period before suspension
@@ -183,6 +200,7 @@ Handle failed payments:
 
 Current: Basic invoices
 Needed:
+
 - PDF generation
 - Email delivery
 - Hosted invoice pages
@@ -195,6 +213,7 @@ Needed:
 ### **Phase 1: Make It Functional (MVP)** 🎯
 
 #### 1. **Add Payment Initiation** (HIGH PRIORITY)
+
 ```typescript
 // convex/subscriptions.ts
 export const createSubscriptionWithPayment = mutation({
@@ -206,6 +225,7 @@ export const createSubscriptionWithPayment = mutation({
 ```
 
 #### 2. **Handle Payment Completion** (HIGH PRIORITY)
+
 ```typescript
 // Webhook receives payment confirmation
 // → Update subscription from "pending_payment" to "active"
@@ -213,6 +233,7 @@ export const createSubscriptionWithPayment = mutation({
 ```
 
 #### 3. **Add Client Webhooks** (HIGH PRIORITY)
+
 ```typescript
 // convex/webhooks/outgoing.ts
 export const sendWebhookToClient = internalMutation({
@@ -223,6 +244,7 @@ export const sendWebhookToClient = internalMutation({
 ```
 
 #### 4. **Create Simple Customer Portal** (MEDIUM PRIORITY)
+
 ```
 /app/portal/[customerId]/page.tsx
 - Show current subscription
@@ -235,21 +257,25 @@ export const sendWebhookToClient = internalMutation({
 ### **Phase 2: Production Ready** 🏭
 
 #### 5. **Dunning System**
+
 - Auto-retry failed payments
 - Email notifications
 - Grace period management
 
 #### 6. **Payment Method Management**
+
 - Store payment method tokens
 - Update payment methods
 - Handle card expiration
 
 #### 7. **Better Invoicing**
+
 - PDF generation (using jsPDF)
 - Email delivery
 - Hosted invoice pages
 
 #### 8. **Usage Limits & Alerts**
+
 - Check usage against limits
 - Send alerts at 80%, 100%
 - Auto-upgrade prompts
@@ -259,21 +285,25 @@ export const sendWebhookToClient = internalMutation({
 ### **Phase 3: Scale & Polish** 🌟
 
 #### 9. **Analytics Dashboard**
+
 - MRR (Monthly Recurring Revenue)
 - Churn rate
 - LTV (Lifetime Value)
 - Revenue graphs
 
 #### 10. **Multi-Currency Support**
+
 - Proper currency conversion
 - Display prices in customer's currency
 
 #### 11. **Tax Handling**
+
 - VAT/Sales tax calculation
 - Tax receipts
 - Regional compliance
 
 #### 12. **Advanced Features**
+
 - Coupon codes
 - Referral system
 - Add-ons and extras
@@ -286,6 +316,7 @@ export const sendWebhookToClient = internalMutation({
 ### Scenario: "TechStartup" uses CrediBill for their SaaS
 
 **1. Setup (One-time)**
+
 ```
 TechStartup:
 1. Signs up on CrediBill admin dashboard
@@ -297,34 +328,35 @@ TechStartup:
 ```
 
 **2. Customer Subscribes**
+
 ```javascript
 // TechStartup's backend
 async function upgradeToProPlan(userId) {
   // 1. Create customer in CrediBill
-  const customer = await fetch('https://credibill.com/api/customers', {
-    method: 'POST',
+  const customer = await fetch("https://credibill.com/api/customers", {
+    method: "POST",
     headers: {
-      'Authorization': 'Bearer sk_live_xyz123',
-      'Content-Type': 'application/json'
+      Authorization: "Bearer sk_live_xyz123",
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       email: user.email,
       first_name: user.firstName,
-      last_name: user.lastName
-    })
+      last_name: user.lastName,
+    }),
   });
 
   // 2. Create subscription (initiates payment)
-  const subscription = await fetch('https://credibill.com/api/subscriptions', {
-    method: 'POST',
+  const subscription = await fetch("https://credibill.com/api/subscriptions", {
+    method: "POST",
     headers: {
-      'Authorization': 'Bearer sk_live_xyz123',
-      'Content-Type': 'application/json'
+      Authorization: "Bearer sk_live_xyz123",
+      "Content-Type": "application/json",
     },
     body: JSON.stringify({
       customerId: customer.customerId,
-      planId: 'plan_pro_monthly'
-    })
+      planId: "plan_pro_monthly",
+    }),
   });
 
   // 3. Redirect customer to payment
@@ -333,6 +365,7 @@ async function upgradeToProPlan(userId) {
 ```
 
 **3. Payment & Activation**
+
 ```
 1. Customer completes payment on Flutterwave
 2. Flutterwave sends webhook to CrediBill
@@ -342,6 +375,7 @@ async function upgradeToProPlan(userId) {
 ```
 
 **4. Ongoing**
+
 ```
 - CrediBill bills customer monthly
 - Tracks usage if usage-based
@@ -359,12 +393,14 @@ async function upgradeToProPlan(userId) {
 **A: BOTH, but for different purposes:**
 
 **Admin UI (Manual):**
+
 - ✅ Testing/debugging
 - ✅ Customer support (manual subscription creation)
 - ✅ Bulk imports
 - ✅ Fixing issues
 
 **API (Automated):**
+
 - ✅ Real customer self-service
 - ✅ Production traffic
 - ✅ Scalable
@@ -373,6 +409,7 @@ async function upgradeToProPlan(userId) {
 ### Q: "What makes it 'functional' for production?"
 
 **Minimum Requirements:**
+
 1. ✅ Customers can subscribe via API
 2. ✅ Payment is collected
 3. ✅ Subscription activates after payment
@@ -381,6 +418,7 @@ async function upgradeToProPlan(userId) {
 6. ✅ Failed payments are handled
 
 **Your Current State:**
+
 - ✅ #1 - Partial (API exists but no payment)
 - ❌ #2 - Missing
 - ❌ #3 - Missing
@@ -395,6 +433,7 @@ async function upgradeToProPlan(userId) {
 Here's what to build FIRST to make it work:
 
 ### 1. Update Subscription Creation API
+
 ```typescript
 // convex/subscriptions.ts
 export const createSubscriptionWithPayment = mutation({
@@ -412,13 +451,14 @@ export const createSubscriptionWithPayment = mutation({
     return {
       subscriptionId,
       checkoutUrl: "https://flutterwave.com/...",
-      paymentReference: "ref_123"
+      paymentReference: "ref_123",
     };
-  }
+  },
 });
 ```
 
 ### 2. Update Webhook Handler
+
 ```typescript
 // When payment succeeds:
 await ctx.db.patch(subscriptionId, {
@@ -429,11 +469,12 @@ await ctx.db.patch(subscriptionId, {
 // Send webhook to client
 await sendClientWebhook({
   event: "subscription.activated",
-  data: subscription
+  data: subscription,
 });
 ```
 
 ### 3. Add Client Webhook Sender
+
 ```typescript
 // convex/webhooks/outgoing.ts
 export const sendClientWebhook = internalMutation({
@@ -441,7 +482,7 @@ export const sendClientWebhook = internalMutation({
   handler: async (ctx, args) => {
     const app = await ctx.db.get(args.appId);
     if (!app.webhookUrl) return;
-    
+
     // Send POST request to client's webhook URL
     await fetch(app.webhookUrl, {
       method: "POST",
@@ -449,10 +490,10 @@ export const sendClientWebhook = internalMutation({
       body: JSON.stringify({
         event: args.event,
         data: args.data,
-        timestamp: Date.now()
-      })
+        timestamp: Date.now(),
+      }),
     });
-  }
+  },
 });
 ```
 
@@ -469,11 +510,13 @@ export const sendClientWebhook = internalMutation({
 ## 💡 Key Insight
 
 **You're NOT building:**
+
 - A payment processor (Flutterwave handles that)
 - An accounting system
 - A full CRM
 
 **You ARE building:**
+
 - Subscription orchestration
 - Billing automation
 - Integration layer between clients and payment processors
@@ -484,6 +527,7 @@ export const sendClientWebhook = internalMutation({
 ## ✅ Success Criteria
 
 Your app is "functional" when:
+
 1. A developer can integrate your API in 30 minutes
 2. Their customers can subscribe with real money
 3. The subscription activates automatically

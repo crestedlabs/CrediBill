@@ -1,8 +1,226 @@
-import { query, mutation } from "./_generated/server";
+import {
+  query,
+  mutation,
+  internalQuery,
+  internalMutation,
+} from "./_generated/server";
 import { getCurrentUser } from "./users";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
+
+// ============================================================================
+// INTERNAL API-KEY-AUTHENTICATED VERSIONS (for HTTP endpoints)
+// ============================================================================
+
+/**
+ * Create customer via API key (no Clerk auth required)
+ * Access controlled by appId from authenticated API key
+ */
+export const createCustomerInternal = internalMutation({
+  args: {
+    appId: v.id("apps"),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    first_name: v.optional(v.string()),
+    last_name: v.optional(v.string()),
+    externalCustomerId: v.optional(v.string()),
+    metadata: v.optional(v.any()),
+    type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
+    status: v.optional(
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Get the app to verify it exists and get organizationId
+    const app = await ctx.db.get(args.appId);
+    if (!app) throw new ConvexError("App not found");
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(args.email)) {
+      throw new ConvexError("Invalid email format");
+    }
+
+    // Check if customer with this email already exists in this app
+    const existingCustomer = await ctx.db
+      .query("customers")
+      .withIndex("by_app_email", (q) =>
+        q.eq("appId", args.appId).eq("email", args.email)
+      )
+      .unique();
+
+    if (existingCustomer) {
+      throw new ConvexError(
+        "Customer with this email already exists in this app"
+      );
+    }
+
+    // Create the customer
+    const customerId = await ctx.db.insert("customers", {
+      organizationId: app.organizationId,
+      appId: args.appId,
+      email: args.email,
+      phone: args.phone,
+      first_name: args.first_name,
+      last_name: args.last_name,
+      externalCustomerId: args.externalCustomerId,
+      metadata: args.metadata,
+      type: args.type || "individual",
+      status: args.status || "active",
+    });
+
+    // Send customer.created webhook
+    const customer = await ctx.db.get(customerId);
+    if (customer) {
+      await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
+        appId: args.appId,
+        event: "customer.created",
+        payload: {
+          customer,
+        },
+      });
+    }
+
+    return customerId;
+  },
+});
+
+/**
+ * List customers via API key (no Clerk auth required)
+ * Scoped to appId from authenticated API key
+ */
+export const listCustomersInternal = internalQuery({
+  args: {
+    appId: v.id("apps"),
+    search: v.optional(v.string()),
+    status: v.optional(
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+    ),
+  },
+  handler: async (ctx, args) => {
+    // Get customers using search index if search term provided
+    let customers;
+
+    if (args.search && args.search.trim().length > 0) {
+      // Use full-text search on email field
+      customers = await ctx.db
+        .query("customers")
+        .withSearchIndex("search_customers", (q) =>
+          q.search("email", args.search!).eq("appId", args.appId)
+        )
+        .collect();
+
+      // Also search in name and phone fields manually
+      const searchLower = args.search.toLowerCase();
+      const allCustomers = await ctx.db
+        .query("customers")
+        .withIndex("by_app", (q) => q.eq("appId", args.appId))
+        .collect();
+
+      const namePhoneMatches = allCustomers.filter(
+        (c) =>
+          c.first_name?.toLowerCase().includes(searchLower) ||
+          c.last_name?.toLowerCase().includes(searchLower) ||
+          c.phone?.includes(args.search!)
+      );
+
+      // Combine and deduplicate results
+      const customerMap = new Map();
+      [...customers, ...namePhoneMatches].forEach((c) =>
+        customerMap.set(c._id, c)
+      );
+      customers = Array.from(customerMap.values());
+    } else {
+      // No search term, get all customers for app
+      customers = await ctx.db
+        .query("customers")
+        .withIndex("by_app", (q) => q.eq("appId", args.appId))
+        .collect();
+    }
+
+    // Filter by status if provided
+    if (args.status) {
+      customers = customers.filter((c) => c.status === args.status);
+    }
+
+    // For each customer, get their subscription count
+    const customersWithStats = await Promise.all(
+      customers.map(async (customer) => {
+        const subscriptions = await ctx.db
+          .query("subscriptions")
+          .withIndex("by_customer", (q) => q.eq("customerId", customer._id))
+          .collect();
+
+        const activeSubscriptions = subscriptions.filter(
+          (s) => s.status === "active" || s.status === "trialing"
+        );
+
+        return {
+          ...customer,
+          subscriptionCount: subscriptions.length,
+          activeSubscriptionCount: activeSubscriptions.length,
+        };
+      })
+    );
+
+    return customersWithStats;
+  },
+});
+
+/**
+ * Get customer via API key (no Clerk auth required)
+ * Access controlled by appId from authenticated API key
+ */
+export const getCustomerInternal = internalQuery({
+  args: {
+    customerId: v.id("customers"),
+    appId: v.id("apps"), // For access control
+  },
+  handler: async (ctx, args) => {
+    // Get the customer
+    const customer = await ctx.db.get(args.customerId);
+    if (!customer) throw new ConvexError("Customer not found");
+
+    // Verify customer belongs to the app (access control)
+    if (customer.appId !== args.appId) {
+      throw new ConvexError("Access denied");
+    }
+
+    // Get customer's subscriptions
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .withIndex("by_customer", (q) => q.eq("customerId", customer._id))
+      .collect();
+
+    // Get subscription details with plan info
+    const subscriptionsWithPlans = await Promise.all(
+      subscriptions.map(async (sub) => {
+        const plan = await ctx.db.get(sub.planId);
+        return {
+          ...sub,
+          plan,
+        };
+      })
+    );
+
+    // Get customer's invoices
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_customer", (q) => q.eq("customerId", customer._id))
+      .collect();
+
+    return {
+      ...customer,
+      subscriptions: subscriptionsWithPlans,
+      invoices,
+    };
+  },
+});
+
+// ============================================================================
+// CLERK-AUTHENTICATED VERSIONS (for dashboard UI)
+// ============================================================================
 
 /**
  * Create a new customer for an app
@@ -382,7 +600,7 @@ export const deleteCustomer = mutation({
     const inactiveSubscriptions = subscriptions.filter(
       (s) => s.status === "cancelled" || s.status === "expired"
     );
-    
+
     for (const subscription of inactiveSubscriptions) {
       await ctx.db.delete(subscription._id);
     }

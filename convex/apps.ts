@@ -1,6 +1,14 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "./users";
+
+// Internal query to get an app by ID (no auth check)
+export const get = internalQuery({
+  args: { id: v.id("apps") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
 
 // Get a single app by ID
 export const getAppById = query({
@@ -176,7 +184,7 @@ export const createApp = mutation({
       language: args.language,
       defaultPaymentMethod: args.defaultPaymentMethod || "momo", // DEPRECATED: fallback for backward compatibility
       retryPolicy: args.retryPolicy,
-      gracePeriod: args.gracePeriod,
+      gracePeriod: args.gracePeriod, // Recommended: 7 days (industry standard)
     });
 
     return {
@@ -591,9 +599,9 @@ export const updateWebhookConfig = mutation({
     let webhookSecret = app.webhookSecret;
     if (!webhookSecret || args.webhookUrl !== app.webhookUrl) {
       // Generate a secure random secret
-      webhookSecret = `whsec_${Array.from({ length: 32 }, () => 
+      webhookSecret = `whsec_${Array.from({ length: 32 }, () =>
         Math.random().toString(36).charAt(2)
-      ).join('')}`;
+      ).join("")}`;
     }
 
     // Update webhook config
@@ -602,9 +610,9 @@ export const updateWebhookConfig = mutation({
       webhookSecret,
     });
 
-    return { 
+    return {
       success: true,
-      webhookSecret // Return the secret so UI can display it
+      webhookSecret, // Return the secret so UI can display it
     };
   },
 });
@@ -624,7 +632,11 @@ export const testWebhook = mutation({
     if (!app) throw new Error("App not found");
 
     if (!app.webhookUrl) {
-      throw new Error("No webhook URL configured");
+      return {
+        success: false,
+        message:
+          "No webhook URL configured. Please set a webhook URL in your app settings before testing webhooks.",
+      };
     }
 
     // Verify user has access

@@ -44,8 +44,8 @@ export function CreateAppFormSimple() {
   const { selectedOrg } = useOrganization();
   const createAppMutation = useMutation(api.apps.createApp);
 
-  // Fetch available payment providers
-  const providers = useQuery(api.providerCatalog.getActiveProviders);
+  // Fetch all payment providers (including inactive ones to show them as disabled)
+  const providers = useQuery(api.providerCatalog.getAllProviders);
 
   // Set organization from context
   useEffect(() => {
@@ -64,8 +64,8 @@ export function CreateAppFormSimple() {
       providers.length > 0 &&
       !(formData as any).paymentProviderId
     ) {
-      // Default to first provider
-      const defaultProvider = providers[0];
+      // Default to first active provider
+      const defaultProvider = providers.find(p => p.isActive) || providers[0];
       setFormData((prev) => ({
         ...prev,
         paymentProviderId: defaultProvider._id as string,
@@ -121,9 +121,14 @@ export function CreateAppFormSimple() {
     }
   };
 
+  // Check if there are any active providers
+  const hasActiveProviders = providers?.some(p => p.isActive) ?? false;
+  const allProvidersDown = providers && providers.length > 0 && !hasActiveProviders;
+
   const canSubmit =
     formData.name.length >= 3 &&
     formData.organizationId.length > 0 &&
+    hasActiveProviders &&
     !isSubmitting;
 
   return (
@@ -201,14 +206,25 @@ export function CreateAppFormSimple() {
           </div>
         </CardHeader>
         <CardContent className="pt-0 space-y-4">
-          <Alert className="border-amber-200 bg-amber-50">
-            <AlertCircle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-900">
-              <span className="font-semibold">Important:</span> Payment provider
-              selection is <strong>permanent and cannot be changed</strong>{" "}
-              after app creation. Choose carefully based on your business needs.
-            </AlertDescription>
-          </Alert>
+          {allProvidersDown ? (
+            <Alert className="border-red-200 bg-red-50">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-red-900">
+                <span className="font-semibold">We're sorry!</span> All payment providers are currently unavailable. 
+                You cannot create an app at this time since payments won't be processed. 
+                Please check back later or contact support for assistance.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-900">
+                <span className="font-semibold">Important:</span> Payment provider
+                selection is <strong>permanent and cannot be changed</strong>{" "}
+                after app creation. Choose carefully based on your business needs.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Provider Cards */}
           {!providers ? (
@@ -220,23 +236,37 @@ export function CreateAppFormSimple() {
               {providers.map((provider) => {
                 const isSelected =
                   (formData as any).paymentProviderId === provider._id;
+                const isDisabled = !provider.isActive;
+                
                 return (
                   <button
                     key={provider._id}
                     type="button"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        paymentProviderId: provider._id as string,
-                      }))
-                    }
-                    className={`relative p-4 rounded-lg border-2 transition-all text-left cursor-pointer flex flex-col ${
-                      isSelected
-                        ? "border-teal-600 bg-teal-50"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    onClick={() => {
+                      if (!isDisabled) {
+                        setFormData((prev) => ({
+                          ...prev,
+                          paymentProviderId: provider._id as string,
+                        }));
+                      }
+                    }}
+                    disabled={isDisabled}
+                    className={`relative p-4 rounded-lg border-2 transition-all text-left flex flex-col ${
+                      isDisabled
+                        ? "cursor-not-allowed bg-slate-100 border-slate-300 opacity-60 grayscale"
+                        : isSelected
+                        ? "border-teal-600 bg-teal-50 cursor-pointer"
+                        : "border-slate-200 hover:border-slate-300 bg-white cursor-pointer"
                     }`}
                   >
-                    {isSelected && (
+                    {isDisabled && (
+                      <div className="absolute top-2 right-2">
+                        <div className="px-2 py-1 bg-red-100 border border-red-300 rounded text-xs text-red-700 font-semibold">
+                          Unavailable
+                        </div>
+                      </div>
+                    )}
+                    {isSelected && !isDisabled && (
                       <div className="absolute top-2 right-2">
                         <div className="w-5 h-5 bg-teal-600 rounded-full flex items-center justify-center">
                           <svg
@@ -275,7 +305,11 @@ export function CreateAppFormSimple() {
                     <div className="flex-1">
                       <p
                         className={`text-xs text-center mb-2 ${
-                          isSelected ? "text-teal-700" : "text-slate-600"
+                          isDisabled
+                            ? "text-slate-400"
+                            : isSelected
+                            ? "text-teal-700"
+                            : "text-slate-600"
                         }`}
                       >
                         {provider.description}
@@ -283,7 +317,11 @@ export function CreateAppFormSimple() {
 
                       <div
                         className={`text-xs space-y-1 text-center ${
-                          isSelected ? "text-teal-700" : "text-slate-500"
+                          isDisabled
+                            ? "text-slate-400"
+                            : isSelected
+                            ? "text-teal-700"
+                            : "text-slate-500"
                         }`}
                       >
                         <div className="flex items-center justify-center gap-2">

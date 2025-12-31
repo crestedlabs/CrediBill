@@ -111,7 +111,8 @@ function InvoicesManager() {
       : "skip"
   );
 
-  const updateInvoiceStatus = useMutation(api.invoices.updateInvoiceStatus);
+  // NOTE: Manual invoice status updates removed.
+  // Invoice status changes automatically via payment webhooks.
 
   // Show no apps state
   if (!selectedApp) {
@@ -180,17 +181,7 @@ function InvoicesManager() {
     setDetailsOpen(true);
   };
 
-  const handleVoidInvoice = async (invoiceId: Id<"invoices">) => {
-    try {
-      await updateInvoiceStatus({
-        invoiceId,
-        status: "void",
-      });
-      toast.success("Invoice voided");
-    } catch (error) {
-      toast.error("Failed to void invoice");
-    }
-  };
+  // NOTE: Manual void function removed. Invoices should be voided via API only.
 
   if (isEmpty) {
     return (
@@ -371,9 +362,6 @@ function InvoicesManager() {
                               <InvoiceActionMenu
                                 invoice={invoice}
                                 onViewDetails={() => openDetails(invoice._id)}
-                                onVoidInvoice={() =>
-                                  handleVoidInvoice(invoice._id)
-                                }
                               />
                             </td>
                           </tr>
@@ -412,11 +400,9 @@ function InvoicesManager() {
 function InvoiceActionMenu({
   invoice,
   onViewDetails,
-  onVoidInvoice,
 }: {
   invoice: any;
   onViewDetails: () => void;
-  onVoidInvoice: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -430,15 +416,7 @@ function InvoiceActionMenu({
           <Eye className="mr-2 h-4 w-4" />
           View details
         </DropdownMenuItem>
-        {(invoice.status === "open" || invoice.status === "failed") && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onVoidInvoice}>
-              <ZapOff className="mr-2 h-4 w-4" />
-              Void invoice
-            </DropdownMenuItem>
-          </>
-        )}
+        {/* NOTE: Void invoice action removed - must be done via API */}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -65,91 +65,99 @@ function decryptString(encryptedData: string): string {
 }
 
 /**
- * Handle PawaPay webhook
- * Signature: HMAC-SHA256 sent in 'X-Signature' header
+ * Handle PawaPay webhook (forwarded from Cloudflare Worker)
+ * Authentication is handled at HTTP layer via X-Webhook-Secret
  */
 export const handlePawapayWebhook = internalAction({
   args: {
     payload: v.string(),
-    signature: v.string(),
     appId: v.id("apps"),
   },
   handler: async (ctx, args) => {
     try {
-      // Parse payload
+      // Parse payload from Cloudflare Worker
       const webhookData = JSON.parse(args.payload);
-      const event = webhookData.event || "unknown";
 
-      // Extract transaction ID
-      const depositId = webhookData.depositId || webhookData.deposit_id;
-      
+      console.log(
+        "[PawaPay] Raw webhook data:",
+        JSON.stringify(webhookData).substring(0, 500)
+      );
+
+      // Provider-agnostic: Handle nested structure (PawaPay wraps in "data")
+      const data = webhookData.data || webhookData;
+      const outerStatus = webhookData.status; // "FOUND" from PawaPay wrapper
+      const event = webhookData.event || "payment.status_update";
+
+      // Extract transaction ID (provider-agnostic field names)
+      const depositId = data.depositId || data.deposit_id || data.transactionId;
+
+      // Extract metadata - PawaPay uses flat object structure
+      const metadata = data.metadata || {};
+      const customerId = metadata.credibill_customer_id;
+      const subscriptionId = metadata.credibill_subscription_id;
+      const invoiceId = metadata.credibill_invoice_id;
+
+      console.log("[PawaPay] Extracted metadata:", {
+        customerId,
+        subscriptionId,
+        invoiceId,
+        depositId,
+      });
+
       // Get app details to find organization context
       const app = await ctx.runQuery(internal.apps.get, { id: args.appId });
       if (!app) {
         console.error("App not found for webhook");
-        return { success: false, error: "App not found" };
+        // Still return success so PawaPay accepts webhook
+        return { success: true, error: "App not found", logged: true };
       }
 
-      // Get provider credentials for this app
-      const credentials = await ctx.runQuery(
-        internal.paymentProviderCredentials.getCredentialsInternal,
-        {
-          appId: args.appId,
-        }
-      );
-
-      if (!credentials || !credentials.webhookSecret) {
-        throw new Error("Provider not configured or missing webhook secret");
-      }
-
-      // Decrypt and verify signature
-      const webhookSecret = decryptString(credentials.webhookSecret);
-
-      const isValid = verifyHmacSignature(
-        args.payload,
-        args.signature,
-        webhookSecret
-      );
-
-      if (!isValid) {
-        console.error("Invalid PawaPay webhook signature");
-        await ctx.runMutation(internal.webhookMutations.logWebhook, {
-          organizationId: app.organizationId,
-          appId: args.appId,
-          provider: "pawapay",
-          event,
-          payload: webhookData,
-          status: "failed",
-          signatureValid: false,
+      // Validate required metadata - customerId is required for transaction tracking
+      if (!customerId) {
+        console.error("[PawaPay] Missing required metadata: customerId", {
+          depositId,
         });
-        return { success: false, error: "Invalid signature" };
+        return {
+          success: true,
+          error:
+            "Missing required metadata: credibill_customer_id. Include it in your deposit request metadata.",
+          logged: true,
+        };
       }
 
-      // Check for idempotency
-      const eventId = webhookData.depositId || webhookData.deposit_id;
-      if (eventId) {
-        const existingWebhook = await ctx.runQuery(
-          internal.webhookQueries.findWebhookByEventId,
-          { eventId }
-        );
-        if (existingWebhook) {
-          console.log(`Duplicate PawaPay webhook event: ${eventId}`);
-          await ctx.runMutation(internal.webhookMutations.logWebhook, {
-            organizationId: app.organizationId,
+      // Check for idempotency using depositId
+      if (depositId) {
+        const existingTransaction = await ctx.runQuery(
+          internal.webhookQueries.findTransactionByReferenceAndApp,
+          {
+            reference: depositId,
             appId: args.appId,
-            provider: "pawapay",
-            event,
-            payload: webhookData,
-            status: "ignored",
-            signatureValid: true,
-          });
-          return { success: true, duplicate: true };
+          }
+        );
+        if (existingTransaction) {
+          console.log(`Duplicate PawaPay webhook for depositId: ${depositId}`);
+          // Update existing transaction status if it's a state transition
+          const currentStatus = webhookData.status?.toUpperCase();
+          if (currentStatus === "COMPLETED" || currentStatus === "FAILED") {
+            // Only update if moving to final state
+            await ctx.runMutation(
+              internal.webhookMutations.updateTransactionFromWebhook,
+              {
+                transactionId: existingTransaction._id,
+                status: currentStatus === "COMPLETED" ? "success" : "failed",
+                providerTransactionId: depositId,
+                providerResponse: webhookData,
+                metadata: { webhookEvent: event, pawaPayStatus: currentStatus },
+              }
+            );
+          }
+          return { success: true, duplicate: false, updated: true };
         }
       }
 
       // Check for replay attack
-      const timestamp = webhookData.created
-        ? new Date(webhookData.created).getTime()
+      const timestamp = data.created
+        ? new Date(data.created).getTime()
         : Date.now();
       if (isReplayAttack(timestamp)) {
         console.error("Potential replay attack detected");
@@ -162,41 +170,95 @@ export const handlePawapayWebhook = internalAction({
           status: "failed",
           signatureValid: true,
         });
-        return { success: false, error: "Webhook too old" };
+        return { success: true, error: "Webhook too old", logged: true };
       }
 
-      // Map status
+      // Map PawaPay status to internal status
+      // ACCEPTED: deposit request accepted by pawaPay for processing → pending
+      // SUBMITTED: deposit submitted to MMO, being processed → pending
+      // COMPLETED: deposit successful (FINAL STATE) → success
+      // FAILED: deposit failed (FINAL STATE) → failed
       let status: "success" | "failed" | "pending" = "pending";
-      const pawaStatus = webhookData.status?.toLowerCase();
-      if (pawaStatus === "completed" || pawaStatus === "accepted") {
+      const pawaStatus = data.status?.toUpperCase();
+
+      console.log("[PawaPay] Status mapping:", {
+        rawStatus: data.status,
+        upperCaseStatus: pawaStatus,
+        depositId,
+      });
+
+      if (pawaStatus === "COMPLETED") {
         status = "success";
-      } else if (pawaStatus === "failed" || pawaStatus === "rejected") {
+      } else if (pawaStatus === "FAILED") {
         status = "failed";
+      } else if (pawaStatus === "ACCEPTED" || pawaStatus === "SUBMITTED") {
+        status = "pending";
       }
 
-      // Find transaction by deposit ID within this app's context
+      console.log("[PawaPay] Mapped to internal status:", status);
+
+      const isFinalState =
+        pawaStatus === "COMPLETED" || pawaStatus === "FAILED";
+
+      // Find or create transaction record using depositId (app owner's UUID)
       let transaction = null;
       if (depositId) {
-        // For PawaPay, we need to search by provider transaction ID within app scope
-        const transactions = await ctx.runQuery(
-          internal.webhookQueries.findTransactionsByAppId,
-          { appId: args.appId }
+        transaction = await ctx.runQuery(
+          internal.webhookQueries.findTransactionByReferenceAndApp,
+          {
+            reference: depositId,
+            appId: args.appId,
+          }
         );
-        transaction = transactions.find(t => t.providerTransactionId === depositId);
       }
 
-      // Update transaction if found
       if (transaction) {
+        // Update existing transaction
         await ctx.runMutation(
           internal.webhookMutations.updateTransactionFromWebhook,
           {
             transactionId: transaction._id,
             status,
             providerTransactionId: depositId,
-            providerResponse: webhookData,
-            metadata: { webhookEvent: event },
+            providerResponse: data,
+            metadata: {
+              webhookEvent: event,
+              pawaPayStatus: pawaStatus,
+              correspondent: data.payer?.accountDetails?.provider,
+            },
           }
         );
+      } else if (depositId) {
+        // Create new transaction record - app owner initiated payment, we're just tracking it
+        // Extract customer/subscription from metadata if provided
+        const transactionId = await ctx.runMutation(
+          internal.webhookMutations.createTransactionFromWebhook,
+          {
+            organizationId: app.organizationId,
+            appId: args.appId,
+            customerId: customerId as any, // From metadata
+            subscriptionId: subscriptionId as any, // From metadata
+            invoiceId: invoiceId as any, // From metadata (optional)
+            providerTransactionId: depositId,
+            provider: "pawapay",
+            status,
+            amount: parseFloat(data.amount || "0"),
+            currency: data.currency || "UGX",
+            providerResponse: data,
+            metadata: {
+              pawaPayStatus: pawaStatus,
+              correspondent: data.payer?.accountDetails?.provider,
+              payer: data.payer,
+              providerTransactionId: data.providerTransactionId,
+            },
+          }
+        );
+        // Fetch the created transaction to get full object
+        const createdTransaction = await ctx.runQuery(
+          internal.webhookQueries.findTransactionByReferenceAndApp,
+          { reference: depositId, appId: args.appId }
+        );
+        transaction = createdTransaction;
       }
 
       // Log webhook
@@ -204,30 +266,33 @@ export const handlePawapayWebhook = internalAction({
         organizationId: app.organizationId,
         appId: args.appId,
         provider: "pawapay",
-        event,
+        event: `pawapay.${pawaStatus?.toLowerCase() || "unknown"}`,
         payload: webhookData,
         status: "processed",
         paymentTransactionId: transaction?._id,
         subscriptionId: transaction?.subscriptionId,
-        signatureValid: true,
         processedAt: Date.now(),
       });
 
-      // Trigger outgoing webhooks to customer app
-      if (transaction && (status === "success" || status === "failed")) {
+      // Only trigger outgoing webhooks on FINAL states (COMPLETED/FAILED)
+      // Don't send duplicate events for ACCEPTED/SUBMITTED intermediate states
+      if (transaction && isFinalState) {
         const webhookEvent =
-          status === "success" ? "subscription.activated" : "payment.failed";
-        await ctx.runAction(internal.outgoingWebhooks.triggerWebhooks, {
+          status === "success" ? "payment.completed" : "payment.failed";
+        await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
           appId: args.appId,
           event: webhookEvent,
           payload: {
             payment: {
               id: transaction._id,
-              amount: transaction.amount,
-              currency: transaction.currency,
-              status,
               providerTransactionId: depositId,
-              timestamp: Date.now(),
+              amount: parseFloat(data.amount || "0"),
+              currency: data.currency,
+              status,
+              pawaPayStatus: pawaStatus,
+              correspondent: data.payer?.accountDetails?.provider,
+              payer: data.payer,
+              timestamp: data.created || new Date().toISOString(),
             },
             subscription_id: transaction.subscriptionId,
             customer_id: transaction.customerId,
@@ -239,7 +304,13 @@ export const handlePawapayWebhook = internalAction({
       return { success: true, status };
     } catch (error: any) {
       console.error("Error processing PawaPay webhook:", error);
-      return { success: false, error: error.message };
+      // Log the error but still return success=true so PawaPay registers the webhook
+      // The error is logged in the console and can be debugged later
+      return {
+        success: true, // Always true so PawaPay accepts the webhook
+        error: error.message,
+        note: "Webhook received but processing encountered an error. Check logs for details.",
+      };
     }
   },
 });

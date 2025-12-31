@@ -16,14 +16,14 @@ function generateApiKey(environment: "test" | "live"): {
       .padStart(2, "0")
   ).join("");
 
-  const prefix = environment === "live" ? "pk_live" : "pk_test";
+  const prefix = environment === "live" ? "sk_live" : "sk_test";
   const fullSecret = `${prefix}_${randomPart}`;
   const keyId = `key_${randomPart.substring(0, 16)}`;
 
   return {
     keyId,
     fullSecret,
-    prefix: fullSecret.substring(0, 12), // "pk_live_abcd" or "pk_test_abcd"
+    prefix: fullSecret.substring(0, 12), // "sk_live_abcd" or "sk_test_abcd"
     suffix: fullSecret.slice(-4), // Last 4 chars
   };
 }
@@ -328,7 +328,7 @@ export const verifyApiKey = query({
     secret: v.string(),
   },
   handler: async (ctx, args) => {
-    // Extract keyId from the secret (format: pk_live_xxx or pk_test_xxx)
+    // Extract keyId from the secret (format: sk_live_xxx or sk_test_xxx)
     const parts = args.secret.split("_");
     if (parts.length < 3) {
       return { valid: false, error: "Invalid key format" };

@@ -5,17 +5,20 @@
 **CrediBill is a Subscription Tracking Service, NOT a Payment Processor**
 
 ### What You DO:
+
 - Track subscription lifecycle (created, active, trialing, cancelled, expired)
 - Monitor billing periods and renewal dates
 - Track usage and generate invoices
 - Send webhooks to clients when events occur
 
 ### What You DON'T DO:
+
 - ❌ Initiate payments
 - ❌ Collect money from end-users
 - ❌ Process credit cards or mobile money
 
 ### What Your CLIENTS Do:
+
 - Collect payments from their end-users
 - Use their own payment provider accounts (Flutterwave, PawaPay, Pesapal, DPO)
 - Handle failed payments and retries
@@ -24,6 +27,7 @@
 ## Complete Payment Flow
 
 ### Flow Diagram
+
 ```
 End User → Client App → Payment Provider → CrediBill → Client App
    (1)        (2)           (3)              (4)        (5)
@@ -32,21 +36,23 @@ End User → Client App → Payment Provider → CrediBill → Client App
 ### Step-by-Step Flow
 
 #### 1. **End User Initiates Action**
+
 - User clicks "Subscribe" or "Upgrade" in client's app
 - User chooses payment method (mobile money, card, etc.)
 
 #### 2. **Client Collects Payment**
+
 ```javascript
 // Client's backend code
 app.post('/subscribe', async (req, res) => {
   const { customerId, planId } = req.body;
-  
+
   // Step 2a: Create subscription in CrediBill (status: pending)
   const subscription = await credibill.subscriptions.create({
     customer_id: customerId,
     plan_id: planId
   });
-  
+
   // Step 2b: Initiate payment with THEIR payment provider
   const payment = await flutterwave.initiate({
     amount: subscription.plan.baseAmount,
@@ -55,13 +61,14 @@ app.post('/subscribe', async (req, res) => {
     tx_ref: subscription.id, // Important: Link payment to subscription
     callback_url: 'https://client-app.com/payment-callback'
   });
-  
+
   // Step 2c: Send user to payment page
   res.json({ payment_url: payment.link });
 });
 ```
 
 #### 3. **Payment Provider Processes Payment**
+
 - User completes payment (M-Pesa, card, etc.)
 - Payment provider validates and processes
 - Provider sends webhooks to **TWO** endpoints:
@@ -69,6 +76,7 @@ app.post('/subscribe', async (req, res) => {
   - Client webhook: `https://client-app.com/webhooks/flutterwave`
 
 #### 4. **CrediBill Receives Payment Notification**
+
 ```
 POST https://credibill.com/webhooks/flutterwave
 {
@@ -84,6 +92,7 @@ POST https://credibill.com/webhooks/flutterwave
 ```
 
 CrediBill's webhook handler:
+
 - Verifies webhook signature
 - Finds transaction/subscription by reference
 - Updates subscription status (pending → active)
@@ -92,6 +101,7 @@ CrediBill's webhook handler:
 - **Sends outgoing webhook to client** ✅
 
 #### 5. **Client Receives Confirmation**
+
 ```
 POST https://client-app.com/webhooks/credibill
 {
@@ -105,6 +115,7 @@ POST https://client-app.com/webhooks/credibill
 ```
 
 Client's webhook handler:
+
 - Verifies signature
 - Activates user's account
 - Enables premium features
@@ -116,16 +127,17 @@ Client's webhook handler:
 
 Your system receives webhooks from payment providers:
 
-| Provider | Endpoint | Signature Header |
-|----------|----------|------------------|
-| Flutterwave | `/webhooks/flutterwave` | `verif-hash` |
-| PawaPay | `/webhooks/pawapay` | `x-pawapay-signature` |
-| Pesapal | `/webhooks/pesapal` | `x-pesapal-signature` |
-| DPO | `/webhooks/dpo` | `x-dpo-signature` |
+| Provider    | Endpoint                          | Signature Header      |
+| ----------- | --------------------------------- | --------------------- |
+| Flutterwave | `/webhooks/flutterwave`           | `verif-hash`          |
+| PawaPay     | `/webhooks/pawapay?appId={appId}` | `x-signature`         |
+| Pesapal     | `/webhooks/pesapal`               | `x-pesapal-signature` |
+| DPO         | `/webhooks/dpo`                   | `x-dpo-signature`     |
 
 ### Webhook Structure
 
 **Files:**
+
 - `convex/http.ts` - HTTP routes for each provider
 - `convex/webhookActionsFlutterwave.ts` - Flutterwave handler
 - `convex/webhookActionsPawapay.ts` - PawaPay handler
@@ -133,6 +145,7 @@ Your system receives webhooks from payment providers:
 - `convex/webhookActionsDpo.ts` - DPO handler
 
 **Each Handler Does:**
+
 1. Verify webhook signature (security)
 2. Extract transaction reference
 3. Find transaction in database
@@ -184,24 +197,28 @@ POST /api/apps
 Clients need to configure in their payment provider dashboard:
 
 **Flutterwave Dashboard:**
+
 ```
 Webhook URL: https://credibill.com/webhooks/flutterwave
 Events: charge.completed, transfer.completed
 ```
 
 **PawaPay Dashboard:**
+
 ```
-Webhook URL: https://credibill.com/webhooks/pawapay
+Webhook URL: https://credibill.com/webhooks/pawapay?appId={appId}
 Events: payment.completed, payment.failed
 ```
 
 **Pesapal Dashboard:**
+
 ```
 IPN URL: https://credibill.com/webhooks/pesapal
 Notification Type: COMPLETED, FAILED
 ```
 
 **DPO Dashboard:**
+
 ```
 Callback URL: https://credibill.com/webhooks/dpo
 ```
@@ -209,6 +226,7 @@ Callback URL: https://credibill.com/webhooks/dpo
 ### For OUTGOING Webhooks (CrediBill → Client)
 
 Already configured in your Settings → Webhooks tab:
+
 - Webhook URL: Client's endpoint
 - Webhook Secret: For signature verification
 - Events: All enabled by default
@@ -216,35 +234,39 @@ Already configured in your Settings → Webhooks tab:
 ## Security Flow
 
 ### 1. Incoming Webhook Verification
+
 ```typescript
 // Your code already does this
-const signature = headers['verif-hash']; // Flutterwave example
+const signature = headers["verif-hash"]; // Flutterwave example
 const expectedSignature = calculateSignature(payload, webhookSecret);
 
 if (signature !== expectedSignature) {
-  throw new Error('Invalid signature');
+  throw new Error("Invalid signature");
 }
 ```
 
 ### 2. Outgoing Webhook Signing
+
 ```typescript
 // Your code already does this
-const hmac = crypto.createHmac('sha256', clientWebhookSecret);
+const hmac = crypto.createHmac("sha256", clientWebhookSecret);
 hmac.update(JSON.stringify(payload));
-const signature = hmac.digest('hex');
+const signature = hmac.digest("hex");
 
-headers['X-Webhook-Signature'] = signature;
+headers["X-Webhook-Signature"] = signature;
 ```
 
 ## Common Events
 
 ### Incoming (From Payment Providers)
+
 - `charge.completed` - Payment successful
 - `charge.failed` - Payment failed
 - `transfer.completed` - Refund processed
 - `transfer.failed` - Refund failed
 
 ### Outgoing (To Clients)
+
 - `subscription.created` - New subscription
 - `subscription.activated` - Payment successful, subscription active
 - `subscription.renewed` - Billing period renewed
@@ -258,6 +280,7 @@ headers['X-Webhook-Signature'] = signature;
 Since you DON'T initiate payments, these need to be cleaned up:
 
 ### Files to Review/Remove:
+
 1. ❌ `convex/payments.ts` - Contains payment initiation logic
 2. ❌ `convex/paymentsNode.ts` - Node.js payment adapter calls
 3. ❌ `convex/lib/paymentAdapters/` - Adapter implementations
@@ -267,6 +290,7 @@ Since you DON'T initiate payments, these need to be cleaned up:
    - `dpo.ts` - `initiatePayment()` method
 
 ### What to KEEP:
+
 ✅ Webhook handlers (incoming)
 ✅ Webhook delivery (outgoing)
 ✅ Payment transaction records (for tracking)
@@ -276,6 +300,7 @@ Since you DON'T initiate payments, these need to be cleaned up:
 ## Recommended Architecture
 
 ### Your Responsibility (CrediBill):
+
 ```typescript
 // Track subscription lifecycle
 subscriptions.create() → status: "pending"
@@ -293,6 +318,7 @@ webhooks.send("invoice.paid", {...})
 ```
 
 ### Client's Responsibility:
+
 ```typescript
 // Initiate payments
 flutterwave.initiatePayment({
@@ -311,7 +337,7 @@ app.post('/payment-callback', async (req, res) => {
 // Receive CrediBill webhooks
 app.post('/webhooks/credibill', async (req, res) => {
   const { event, data } = req.body;
-  
+
   switch (event) {
     case 'subscription.activated':
       await activateUser(data.customer.external_id);
@@ -326,12 +352,14 @@ app.post('/webhooks/credibill', async (req, res) => {
 ## Summary
 
 Your system is a **passive tracker** that:
+
 1. ✅ Receives payment notifications from providers
 2. ✅ Updates subscription states
 3. ✅ Generates invoices and usage reports
 4. ✅ Sends notifications to clients
 
 Your system does NOT:
+
 1. ❌ Initiate payments
 2. ❌ Store credit card details
 3. ❌ Process transactions

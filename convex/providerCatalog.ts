@@ -1,13 +1,12 @@
 import { query, mutation, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 
-// Query to get all active providers
-export const getActiveProviders = query({
+// Query to get all providers (including inactive ones)
+export const getAllProviders = query({
   args: {},
   handler: async (ctx) => {
     const providers = await ctx.db
       .query("providerCatalog")
-      .withIndex("by_active", (q) => q.eq("isActive", true))
       .collect();
 
     // Sort by sortOrder

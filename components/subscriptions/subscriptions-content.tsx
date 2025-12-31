@@ -27,20 +27,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  PackageOpen,
-  MoreVertical,
-  Play,
-  Pause,
-  XCircle,
-  RotateCw,
-  Calendar,
-  FileText,
-} from "lucide-react";
+import { PackageOpen, MoreVertical, XCircle, Calendar } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { parseConvexError } from "@/lib/error-utils";
-import { GenerateInvoiceDialog } from "@/components/invoices/generate-invoice-dialog";
 
 export default function SubscriptionsContent() {
   return (
@@ -169,7 +159,12 @@ function SubscriptionsManager() {
   const statusColors: Record<string, { badge: string; bg: string }> = {
     active: { badge: "bg-emerald-100 text-emerald-800", bg: "bg-emerald-50" },
     trialing: { badge: "bg-blue-100 text-blue-800", bg: "bg-blue-50" },
-    paused: { badge: "bg-amber-100 text-amber-800", bg: "bg-amber-50" },
+    pending_payment: {
+      badge: "bg-amber-100 text-amber-800",
+      bg: "bg-amber-50",
+    },
+    past_due: { badge: "bg-orange-100 text-orange-800", bg: "bg-orange-50" },
+    paused: { badge: "bg-purple-100 text-purple-800", bg: "bg-purple-50" },
     cancelled: { badge: "bg-red-100 text-red-800", bg: "bg-red-50" },
     expired: { badge: "bg-slate-100 text-slate-800", bg: "bg-slate-50" },
   };
@@ -248,7 +243,8 @@ function SubscriptionsManager() {
                     <tbody>
                       {filteredSubscriptions.map((subscription: any) => {
                         const status = subscription.status || "active";
-                        const colors = statusColors[status];
+                        const colors =
+                          statusColors[status] || statusColors.active; // Fallback to active styling
                         const customerName = subscription.customer?.first_name
                           ? `${subscription.customer.first_name}${subscription.customer.last_name ? ` ${subscription.customer.last_name}` : ""}`
                           : subscription.customer?.email || "Unknown";
@@ -366,71 +362,33 @@ function SubscriptionActionMenu({
   status: string;
 }) {
   const { selectedApp } = useApp();
-  const [showPauseDialog, setShowPauseDialog] = useState(false);
-  const [showResumeDialog, setShowResumeDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [showCancelEndDialog, setShowCancelEndDialog] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const updateStatusMutation = useMutation(
     api.subscriptions.updateSubscriptionStatus
   );
-  const renewMutation = useMutation(api.subscriptions.renewSubscription);
 
-  const handleAction = async (
-    action: "pause" | "resume" | "cancel" | "cancel_at_period_end"
-  ) => {
+  const handleCancelAtPeriodEnd = async () => {
     setIsProcessing(true);
     try {
       await updateStatusMutation({
         subscriptionId: subscriptionId as any,
-        action,
+        action: "cancel_at_period_end",
       });
 
-      const actionMessages: Record<string, string> = {
-        pause: "Subscription paused successfully",
-        resume: "Subscription resumed successfully",
-        cancel: "Subscription cancelled immediately",
-        cancel_at_period_end: "Subscription will cancel at period end",
-      };
+      const message = status === "trialing"
+        ? "Subscription will cancel at trial end"
+        : "Subscription will cancel at period end";
 
-      toast.success(actionMessages[action], {
+      toast.success(message, {
         description: `${customerEmail} - ${planName}`,
       });
 
-      setShowPauseDialog(false);
-      setShowResumeDialog(false);
       setShowCancelDialog(false);
-      setShowCancelEndDialog(false);
     } catch (error: any) {
       const userFriendlyMessage = parseConvexError(error);
       toast.error("Failed to update subscription", {
-        description: userFriendlyMessage,
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const handleRenew = async () => {
-    setIsProcessing(true);
-    try {
-      const result = await renewMutation({
-        subscriptionId: subscriptionId as any,
-      });
-
-      if (result.renewed) {
-        toast.success("Subscription renewed successfully", {
-          description: `${customerEmail} - ${planName}`,
-        });
-      } else if (result.cancelled) {
-        toast.info("Subscription cancelled as scheduled");
-      } else if (result.expired) {
-        toast.info("Subscription expired (one-time plan)");
-      }
-    } catch (error: any) {
-      const userFriendlyMessage = parseConvexError(error);
-      toast.error("Failed to renew subscription", {
         description: userFriendlyMessage,
       });
     } finally {
@@ -447,113 +405,39 @@ function SubscriptionActionMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          {(status === "active" || status === "trialing") && (
-            <DropdownMenuItem onClick={() => setShowPauseDialog(true)}>
-              <Pause className="mr-2 h-4 w-4" />
-              Pause subscription
-            </DropdownMenuItem>
-          )}
-          {status === "paused" && (
-            <DropdownMenuItem onClick={() => setShowResumeDialog(true)}>
-              <Play className="mr-2 h-4 w-4" />
-              Resume subscription
-            </DropdownMenuItem>
-          )}
           {(status === "active" ||
             status === "trialing" ||
+            status === "pending_payment" ||
             status === "paused") && (
-            <>
-              <DropdownMenuItem onClick={handleRenew} disabled={isProcessing}>
-                <RotateCw className="mr-2 h-4 w-4" />
-                Renew now
-              </DropdownMenuItem>
-              <GenerateInvoiceDialog
-                subscriptionId={subscriptionId as any}
-                gracePeriod={selectedApp?.gracePeriod || 7}
-                trigger={
-                  <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                    <FileText className="mr-2 h-4 w-4" />
-                    Generate invoice
-                  </DropdownMenuItem>
-                }
-              />
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setShowCancelEndDialog(true)}>
-                <Calendar className="mr-2 h-4 w-4" />
-                Cancel at period end
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-red-600"
-                onClick={() => setShowCancelDialog(true)}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Cancel immediately
-              </DropdownMenuItem>
-            </>
+            <DropdownMenuItem onClick={() => setShowCancelDialog(true)}>
+              <XCircle className="mr-2 h-4 w-4" />
+              {status === "trialing" ? "Cancel at trial end" : "Cancel at period end"}
+            </DropdownMenuItem>
           )}
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Pause Confirmation */}
-      <AlertDialog open={showPauseDialog} onOpenChange={setShowPauseDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Pause Subscription</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to pause this subscription for{" "}
-              <strong>{customerEmail}</strong>?
-              <br />
-              Plan: <strong>{planName}</strong>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessing}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => handleAction("pause")}
-              disabled={isProcessing}
-            >
-              {isProcessing ? "Pausing..." : "Pause"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Resume Confirmation */}
-      <AlertDialog open={showResumeDialog} onOpenChange={setShowResumeDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Resume Subscription</AlertDialogTitle>
-            <AlertDialogDescription>
-              Resume subscription for <strong>{customerEmail}</strong>?
-              <br />
-              Plan: <strong>{planName}</strong>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessing}>
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => handleAction("resume")}
-              disabled={isProcessing}
-            >
-              {isProcessing ? "Resuming..." : "Resume"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Cancel Immediately Confirmation */}
+      {/* Cancel at Period End Confirmation */}
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Subscription Immediately</AlertDialogTitle>
+            <AlertDialogTitle>
+              {status === "trialing" ? "Cancel at Trial End" : "Cancel at Period End"}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will cancel the subscription immediately for{" "}
-              <strong>{customerEmail}</strong>. The customer will lose access
-              right away.
+              {status === "trialing" ? (
+                <>
+                  This will cancel the subscription for{" "}
+                  <strong>{customerEmail}</strong> when the trial ends. They will
+                  retain access until then, and no payment will be collected.
+                </>
+              ) : (
+                <>
+                  This will cancel the subscription for{" "}
+                  <strong>{customerEmail}</strong> at the end of the current
+                  billing period. They will retain access until then.
+                </>
+              )}
               <br />
               <br />
               Plan: <strong>{planName}</strong>
@@ -564,40 +448,9 @@ function SubscriptionActionMenu({
               Go Back
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => handleAction("cancel")}
+              onClick={handleCancelAtPeriodEnd}
               disabled={isProcessing}
               className="bg-red-600 hover:bg-red-700"
-            >
-              {isProcessing ? "Cancelling..." : "Cancel Immediately"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Cancel at Period End Confirmation */}
-      <AlertDialog
-        open={showCancelEndDialog}
-        onOpenChange={setShowCancelEndDialog}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancel at Period End</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will schedule cancellation for{" "}
-              <strong>{customerEmail}</strong> at the end of the current billing
-              period. They will retain access until then.
-              <br />
-              <br />
-              Plan: <strong>{planName}</strong>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessing}>
-              Go Back
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => handleAction("cancel_at_period_end")}
-              disabled={isProcessing}
             >
               {isProcessing ? "Scheduling..." : "Schedule Cancellation"}
             </AlertDialogAction>

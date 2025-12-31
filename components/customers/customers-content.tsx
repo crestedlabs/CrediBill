@@ -6,8 +6,7 @@ import { useApp } from "@/contexts/app-context";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { CreateCustomerDialog } from "@/components/customers/create-customer-dialog";
-import { SubscribeCustomerDialog } from "@/components/subscriptions/subscribe-customer-dialog";
-import { ChangeSubscriptionDialog } from "@/components/subscriptions/change-subscription-dialog";
+import { ViewCustomerDialog } from "@/components/customers/view-customer-dialog";
 import { CustomerFilters } from "@/components/customers/customer-filters";
 import { CustomersSkeleton } from "@/components/customers/customers-skeleton";
 import Link from "next/link";
@@ -41,12 +40,10 @@ import {
   MoreVertical,
   Plus,
   Mail,
-  Settings,
   Eye,
   Trash2,
   Search,
   PackageOpen,
-  RotateCw,
 } from "lucide-react";
 
 const statusColors: Record<string, { badge: string; bg: string }> = {
@@ -288,7 +285,9 @@ function CustomersManager() {
                                 customerId={customer._id}
                                 customerEmail={customer.email}
                                 appId={selectedApp._id}
-                                hasActiveSubscription={customer.activeSubscriptionCount > 0}
+                                hasActiveSubscription={
+                                  customer.activeSubscriptionCount > 0
+                                }
                               />
                             </td>
                           </tr>
@@ -336,8 +335,7 @@ function CustomerActionMenu({
   appId: string;
   hasActiveSubscription: boolean;
 }) {
-  const [showSubscribeDialog, setShowSubscribeDialog] = useState(false);
-  const [showChangeSubscriptionDialog, setShowChangeSubscriptionDialog] = useState(false);
+  const [showViewDialog, setShowViewDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -373,19 +371,7 @@ function CustomerActionMenu({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          {hasActiveSubscription ? (
-            <DropdownMenuItem onClick={() => setShowChangeSubscriptionDialog(true)}>
-              <RotateCw className="mr-2 h-4 w-4" />
-              Change Subscription
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem onClick={() => setShowSubscribeDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Subscribe to plan
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowViewDialog(true)}>
             <Eye className="mr-2 h-4 w-4" />
             View details
           </DropdownMenuItem>
@@ -404,26 +390,10 @@ function CustomerActionMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <SubscribeCustomerDialog
-        appId={appId as any}
+      <ViewCustomerDialog
         customerId={customerId as any}
-        customerEmail={customerEmail}
-        open={showSubscribeDialog}
-        onOpenChange={setShowSubscribeDialog}
-        onSuccess={() => {
-          // Dialog auto-closes, data auto-refreshes
-        }}
-      />
-
-      <ChangeSubscriptionDialog
-        appId={appId as any}
-        customerId={customerId as any}
-        customerEmail={customerEmail}
-        open={showChangeSubscriptionDialog}
-        onOpenChange={setShowChangeSubscriptionDialog}
-        onSuccess={() => {
-          // Dialog auto-closes, data auto-refreshes
-        }}
+        open={showViewDialog}
+        onOpenChange={setShowViewDialog}
       />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

@@ -40,6 +40,13 @@ export const processTrialExpirations = internalAction({
           subscriptionId: subscription._id,
         });
 
+        // Generate invoice for the upcoming billing period
+        await ctx.runMutation(internal.invoices.generateInvoiceInternal, {
+          subscriptionId: subscription._id,
+          periodStart: now,
+          periodEnd: now, // Period will be set properly when payment is received
+        });
+
         // Send webhook to client so they can collect payment
         await ctx.runMutation(internal.webhookDelivery.queueWebhook, {
           appId: subscription.appId,
@@ -324,6 +331,215 @@ export const processWebhookRetries = internalAction({
       processed: webhooks.length,
       succeeded,
       failed,
+    };
+  },
+});
+
+/**
+ * Process grace period expirations
+ * Finds subscriptions past their grace period and marks them as past_due
+ */
+export const processGracePeriodExpirations = internalAction({
+  handler: async (
+    ctx
+  ): Promise<{ processed: number; succeeded: number; failed: number }> => {
+    const now = Date.now();
+
+    // Find subscriptions past their grace period
+    const subscriptions: any[] = await ctx.runQuery(
+      internal.cronQueries.getGracePeriodExpiredSubscriptions,
+      { now }
+    );
+
+    console.log(
+      `[Cron] Found ${subscriptions.length} subscriptions past grace period`
+    );
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Process each subscription
+    for (const subscription of subscriptions) {
+      try {
+        // Mark subscription as past_due
+        await ctx.runMutation(internal.cronMutations.markSubscriptionPastDue, {
+          subscriptionId: subscription._id,
+        });
+
+        // Send webhook
+        await ctx.runMutation(internal.webhookDelivery.queueWebhook, {
+          appId: subscription.appId,
+          event: "subscription.past_due",
+          payload: {
+            subscription_id: subscription._id,
+            customer_id: subscription.customerId,
+            grace_period_expired: subscription.graceDeadline,
+            failed_payment_attempts: subscription.failedPaymentAttempts || 0,
+          },
+        });
+
+        successCount++;
+        console.log(
+          `[Cron] Successfully marked subscription ${subscription._id} as past_due`
+        );
+      } catch (error: any) {
+        failureCount++;
+        console.error(
+          `[Cron] Error processing grace period expiration for subscription ${subscription._id}:`,
+          error
+        );
+      }
+    }
+
+    console.log(
+      `[Cron] Grace period expiration processing complete: ${successCount} succeeded, ${failureCount} failed`
+    );
+
+    return {
+      processed: subscriptions.length,
+      succeeded: successCount,
+      failed: failureCount,
+    };
+  },
+});
+
+/**
+ * Process scheduled cancellations
+ * Cancels subscriptions that have reached their period end with cancelAtPeriodEnd=true
+ */
+export const processScheduledCancellations = internalAction({
+  handler: async (
+    ctx
+  ): Promise<{ processed: number; succeeded: number; failed: number }> => {
+    const now = Date.now();
+
+    // Find subscriptions scheduled for cancellation
+    const subscriptions: any[] = await ctx.runQuery(
+      internal.cronQueries.getScheduledCancellations,
+      { now }
+    );
+
+    console.log(
+      `[Cron] Found ${subscriptions.length} subscriptions scheduled for cancellation`
+    );
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Process each subscription
+    for (const subscription of subscriptions) {
+      try {
+        // Cancel the subscription
+        await ctx.runMutation(
+          internal.cronMutations.cancelSubscriptionAtPeriodEnd,
+          {
+            subscriptionId: subscription._id,
+          }
+        );
+
+        // Send cancellation webhook (customer info already in subscription object)
+        await ctx.runMutation(internal.webhookDelivery.queueWebhook, {
+          appId: subscription.appId,
+          event: "subscription.cancelled",
+          payload: {
+            subscription_id: subscription._id,
+            customer_id: subscription.customerId,
+            cancelled_at: now,
+            reason: "Scheduled cancellation at period end",
+          },
+        });
+
+        successCount++;
+        console.log(
+          `[Cron] Successfully cancelled subscription ${subscription._id} at period end`
+        );
+      } catch (error: any) {
+        failureCount++;
+        console.error(
+          `[Cron] Error cancelling subscription ${subscription._id}:`,
+          error
+        );
+      }
+    }
+
+    console.log(
+      `[Cron] Scheduled cancellation processing complete: ${successCount} succeeded, ${failureCount} failed`
+    );
+
+    return {
+      processed: subscriptions.length,
+      succeeded: successCount,
+      failed: failureCount,
+    };
+  },
+});
+
+/**
+ * Generate pending invoices
+ * Automatically creates invoices for subscriptions past their period end
+ */
+export const generatePendingInvoices = internalAction({
+  handler: async (
+    ctx
+  ): Promise<{ processed: number; succeeded: number; failed: number }> => {
+    const now = Date.now();
+
+    // Find subscriptions needing invoices
+    const subscriptions: any[] = await ctx.runQuery(
+      internal.cronQueries.getSubscriptionsNeedingInvoices,
+      { now }
+    );
+
+    console.log(
+      `[Cron] Found ${subscriptions.length} subscriptions needing invoices`
+    );
+
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Process each subscription
+    for (const subscription of subscriptions) {
+      try {
+        // Generate invoice
+        await ctx.runMutation(internal.invoices.generateInvoiceInternal, {
+          subscriptionId: subscription._id,
+          periodStart: subscription.currentPeriodStart,
+          periodEnd: subscription.currentPeriodEnd,
+        });
+
+        // Send webhook
+        await ctx.runMutation(internal.webhookDelivery.queueWebhook, {
+          appId: subscription.appId,
+          event: "invoice.created",
+          payload: {
+            subscription_id: subscription._id,
+            customer_id: subscription.customerId,
+            period_start: subscription.currentPeriodStart,
+            period_end: subscription.currentPeriodEnd,
+          },
+        });
+
+        successCount++;
+        console.log(
+          `[Cron] Successfully generated invoice for subscription ${subscription._id}`
+        );
+      } catch (error: any) {
+        failureCount++;
+        console.error(
+          `[Cron] Error generating invoice for subscription ${subscription._id}:`,
+          error
+        );
+      }
+    }
+
+    console.log(
+      `[Cron] Invoice generation complete: ${successCount} succeeded, ${failureCount} failed`
+    );
+
+    return {
+      processed: subscriptions.length,
+      succeeded: successCount,
+      failed: failureCount,
     };
   },
 });

@@ -123,7 +123,7 @@ export default defineSchema({
     requireBillingAddress: v.optional(v.boolean()), // default false
     enableProration: v.optional(v.boolean()), // default true
     autoSuspendOnFailedPayment: v.optional(v.boolean()), // default true
-    
+
     // Webhook configuration
     webhookUrl: v.optional(v.string()),
     webhookSecret: v.optional(v.string()),
@@ -238,6 +238,7 @@ export default defineSchema({
     status: v.union(
       v.literal("active"),
       v.literal("trialing"),
+      v.literal("pending_payment"), // Awaiting first payment
       v.literal("paused"),
       v.literal("cancelled"),
       v.literal("expired"),
@@ -346,7 +347,7 @@ export default defineSchema({
     name: v.string(), // User-friendly name: "Production Key", "CI/CD Key"
     keyId: v.string(), // Unique identifier: "key_abc123..."
     hashedSecret: v.string(), // bcrypt hash of the actual secret key
-    keyPrefix: v.string(), // First 12 chars for display: "pk_live_abc1"
+    keyPrefix: v.string(), // First 12 chars for display: "sk_live_abc1"
     keySuffix: v.string(), // Last 4 chars for display: "xyz9"
     environment: v.union(v.literal("test"), v.literal("live")),
     scopes: v.array(v.string()), // ["read", "write", "webhooks", "admin"]
@@ -405,7 +406,7 @@ export default defineSchema({
   paymentTransactions: defineTable({
     organizationId: v.id("organizations"),
     appId: v.id("apps"),
-    customerId: v.id("customers"),
+    customerId: v.id("customers"), // Required for proper tracking
     subscriptionId: v.optional(v.id("subscriptions")),
     invoiceId: v.optional(v.id("invoices")),
 

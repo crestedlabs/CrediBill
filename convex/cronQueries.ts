@@ -96,3 +96,110 @@ export const getExpiredTransactions = internalQuery({
     return pendingTransactions;
   },
 });
+
+/**
+ * Get subscriptions past their grace period
+ * Finds subscriptions where period ended + grace period has passed
+ */
+export const getGracePeriodExpiredSubscriptions = internalQuery({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    // Find subscriptions where period ended + grace period has passed
+    // Status is active or pending_payment (not yet marked past_due)
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "active"),
+          q.eq(q.field("status"), "pending_payment")
+        )
+      )
+      .collect();
+
+    // Filter subscriptions where grace period has expired
+    const expiredSubscriptions = [];
+    for (const sub of subscriptions) {
+      const app = await ctx.db.get(sub.appId);
+      if (!app) continue;
+
+      const gracePeriodMs = (app.gracePeriod || 7) * 24 * 60 * 60 * 1000;
+      const graceDeadline = sub.currentPeriodEnd + gracePeriodMs;
+
+      if (args.now > graceDeadline) {
+        expiredSubscriptions.push({ ...sub, graceDeadline, gracePeriodMs });
+      }
+    }
+
+    return expiredSubscriptions;
+  },
+});
+
+/**
+ * Get subscriptions needing invoices
+ * Finds subscriptions past their period end without invoices for current period
+ */
+export const getSubscriptionsNeedingInvoices = internalQuery({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    // Find active subscriptions past their period end
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .filter((q) =>
+        q.or(
+          q.eq(q.field("status"), "active"),
+          q.eq(q.field("status"), "trialing")
+        )
+      )
+      .filter((q) => q.lte(q.field("currentPeriodEnd"), args.now))
+      .collect();
+
+    // Check if invoice already exists for this period
+    const subscriptionsNeedingInvoices = [];
+    for (const sub of subscriptions) {
+      const existingInvoice = await ctx.db
+        .query("invoices")
+        .withIndex("by_subscription", (q) => q.eq("subscriptionId", sub._id))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("periodStart"), sub.currentPeriodStart),
+            q.eq(q.field("periodEnd"), sub.currentPeriodEnd)
+          )
+        )
+        .first();
+
+      if (!existingInvoice) {
+        subscriptionsNeedingInvoices.push(sub);
+      }
+    }
+
+    return subscriptionsNeedingInvoices;
+  },
+});
+
+/**
+ * Get subscriptions scheduled for cancellation at period end
+ * Finds subscriptions with cancelAtPeriodEnd=true where period has ended
+ */
+export const getScheduledCancellations = internalQuery({
+  args: { now: v.number() },
+  handler: async (ctx, args) => {
+    // Find subscriptions scheduled for cancellation
+    const subscriptions = await ctx.db
+      .query("subscriptions")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("cancelAtPeriodEnd"), true),
+          q.or(
+            q.eq(q.field("status"), "active"),
+            q.eq(q.field("status"), "trialing"),
+            q.eq(q.field("status"), "pending_payment"),
+            q.eq(q.field("status"), "paused")
+          )
+        )
+      )
+      .collect();
+
+    // Filter by those past their period end
+    return subscriptions.filter((sub) => args.now >= sub.currentPeriodEnd);
+  },
+});

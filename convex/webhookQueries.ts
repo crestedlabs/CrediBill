@@ -20,9 +20,9 @@ export const findTransactionByReference = internalQuery({
  * Find a transaction by provider reference scoped to a specific app
  */
 export const findTransactionByReferenceAndApp = internalQuery({
-  args: { 
+  args: {
     reference: v.string(),
-    appId: v.id("apps")
+    appId: v.id("apps"),
   },
   handler: async (ctx, args) => {
     return await ctx.db

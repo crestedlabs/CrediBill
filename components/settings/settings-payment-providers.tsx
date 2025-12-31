@@ -28,14 +28,17 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
+import { useState, useEffect } from "react";
 import { parseConvexError } from "@/lib/error-utils";
-import { useState } from "react";
 import { Loader2, CreditCard, AlertCircle, Lock, Save } from "lucide-react";
 
 export default function SettingsPaymentProviders() {
   const { selectedApp } = useApp();
   const { canManageSettings } = useAppPermissions();
   const [isSaving, setIsSaving] = useState(false);
+  const saveCredentialsMutation = useMutation(
+    api.paymentProviderCredentials.saveCredentials
+  );
 
   // Form state
   const [environment, setEnvironment] = useState<"test" | "live">("test");
@@ -48,6 +51,12 @@ export default function SettingsPaymentProviders() {
     selectedApp?._id ? { appId: selectedApp._id } : "skip"
   );
 
+  // Get existing credentials
+  const existingCredentials = useQuery(
+    api.paymentProviderCredentials.getCredentials,
+    selectedApp?._id ? { appId: selectedApp._id } : "skip"
+  );
+
   // Fetch the specific provider details from catalog
   const selectedProvider = useQuery(
     api.providerCatalog.getProviderById,
@@ -55,6 +64,18 @@ export default function SettingsPaymentProviders() {
       ? { providerId: appSettings.paymentProviderId }
       : "skip"
   );
+
+  // Load existing credentials into form
+  useEffect(() => {
+    if (existingCredentials) {
+      setEnvironment(existingCredentials.environment || "test");
+      // Note: We don't load secret keys back for security reasons
+      // User must re-enter them to update
+      if (existingCredentials.credentials?.publicKey) {
+        setPublicKey(existingCredentials.credentials.publicKey);
+      }
+    }
+  }, [existingCredentials]);
 
   if (!selectedApp) {
     return (
@@ -90,6 +111,11 @@ export default function SettingsPaymentProviders() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!selectedApp?._id) {
+      toast.error("No app selected");
+      return;
+    }
+
     if (!secretKey.trim()) {
       toast.error("Secret key is required");
       return;
@@ -97,17 +123,22 @@ export default function SettingsPaymentProviders() {
 
     setIsSaving(true);
     try {
-      // TODO: Implement update mutation for provider credentials
-      toast.success("Provider credentials updated successfully");
+      await saveCredentialsMutation({
+        appId: selectedApp._id,
+        credentials: {
+          publicKey: publicKey.trim() || undefined,
+          secretKey: secretKey.trim(),
+        },
+        environment,
+      });
 
-      // Clear sensitive data from state
+      toast.success("Provider credentials saved successfully");
+
+      // Clear only the secret key from state (keep public key visible)
       setSecretKey("");
-      setPublicKey("");
     } catch (error: any) {
       const userFriendlyMessage = parseConvexError(error);
-      toast.error(
-        userFriendlyMessage || "Failed to update provider credentials"
-      );
+      toast.error(userFriendlyMessage || "Failed to save provider credentials");
     } finally {
       setIsSaving(false);
     }
@@ -150,10 +181,10 @@ export default function SettingsPaymentProviders() {
       <Alert className="border-amber-200 bg-amber-50">
         <Lock className="h-4 w-4 text-amber-600" />
         <AlertDescription className="text-amber-900">
-          <span className="font-semibold">Important:</span> Your payment
-          provider was set during app creation and{" "}
+          <span className="font-semibold">Important: </span>
+          {selectedProvider.displayName} was set during app creation and{" "}
           <strong>cannot be changed</strong>. You can only update the API
-          credentials below.
+          credentials where applicable.
         </AlertDescription>
       </Alert>
 
@@ -295,14 +326,17 @@ export default function SettingsPaymentProviders() {
                 <Input
                   id="secretKey"
                   type="password"
-                  placeholder="sk_..."
+                  placeholder={
+                    existingCredentials ? "••••••••••••••••" : "sk_..."
+                  }
                   value={secretKey}
                   onChange={(e) => setSecretKey(e.target.value)}
                   disabled={!canManageSettings}
                 />
                 <p className="text-xs text-slate-500">
-                  Your API secret key from {selectedProvider.displayName}{" "}
-                  dashboard
+                  {existingCredentials
+                    ? "Re-enter your secret key to update it"
+                    : `Your API secret key from ${selectedProvider.displayName} dashboard`}
                 </p>
               </div>
             </PermissionAwareField>
@@ -337,12 +371,14 @@ export default function SettingsPaymentProviders() {
                 {isSaving ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    {existingCredentials ? "Updating..." : "Saving..."}
                   </>
                 ) : (
                   <>
                     <Save className="mr-2 h-4 w-4" />
-                    Save Credentials
+                    {existingCredentials
+                      ? "Update Credentials"
+                      : "Save Credentials"}
                   </>
                 )}
               </Button>

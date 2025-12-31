@@ -12,6 +12,7 @@ Your MVP now has a complete outgoing webhook system that sends real-time notific
 ### 1. **Webhook Configuration** (Per App)
 
 Each app can configure:
+
 - **Webhook URL**: Where to send notifications (e.g., `https://client-api.com/webhooks/credibill`)
 - **Webhook Secret** (optional): For HMAC-SHA256 signature verification
 
@@ -21,15 +22,15 @@ Configuration is in: Settings → Webhooks tab
 
 Your system sends webhooks for these events:
 
-| Event | When Triggered | Payload Includes |
-|-------|---------------|------------------|
-| `subscription.created` | New subscription created | subscription, customer, plan |
-| `subscription.activated` | Payment successful, subscription active | payment, subscription_id, customer_id, invoice_id |
-| `subscription.renewed` | Subscription renewed for new period | subscription, customer, plan |
-| `subscription.cancelled` | Subscription cancelled (immediate or at period end) | subscription, customer |
-| `subscription.plan_changed` | Customer changed plans | subscription, customer, old_plan, new_plan, proration |
-| `payment.failed` | Payment attempt failed | payment, subscription_id, customer_id, invoice_id |
-| `test.webhook` | Test button clicked | test message |
+| Event                       | When Triggered                                      | Payload Includes                                      |
+| --------------------------- | --------------------------------------------------- | ----------------------------------------------------- |
+| `subscription.created`      | New subscription created                            | subscription, customer, plan                          |
+| `subscription.activated`    | Payment successful, subscription active             | payment, subscription_id, customer_id, invoice_id     |
+| `subscription.renewed`      | Subscription renewed for new period                 | subscription, customer, plan                          |
+| `subscription.cancelled`    | Subscription cancelled (immediate or at period end) | subscription, customer                                |
+| `subscription.plan_changed` | Customer changed plans                              | subscription, customer, old_plan, new_plan, proration |
+| `payment.failed`            | Payment attempt failed                              | payment, subscription_id, customer_id, invoice_id     |
+| `test.webhook`              | Test button clicked                                 | test message                                          |
 
 ### 3. **Webhook Payload Format**
 
@@ -62,25 +63,25 @@ If you configure a webhook secret, your clients can verify authenticity:
 
 ```javascript
 // Node.js example
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 function verifyWebhook(payload, signature, secret) {
-  const hmac = crypto.createHmac('sha256', secret);
+  const hmac = crypto.createHmac("sha256", secret);
   hmac.update(JSON.stringify(payload));
-  const expectedSignature = hmac.digest('hex');
-  
+  const expectedSignature = hmac.digest("hex");
+
   return signature === expectedSignature;
 }
 
 // In your webhook handler
-app.post('/webhooks/credibill', (req, res) => {
-  const signature = req.headers['x-webhook-signature'];
+app.post("/webhooks/credibill", (req, res) => {
+  const signature = req.headers["x-webhook-signature"];
   const isValid = verifyWebhook(req.body, signature, YOUR_SECRET);
-  
+
   if (!isValid) {
-    return res.status(401).send('Invalid signature');
+    return res.status(401).send("Invalid signature");
   }
-  
+
   // Process webhook...
 });
 ```
@@ -88,6 +89,7 @@ app.post('/webhooks/credibill', (req, res) => {
 ### 6. **Retry Logic**
 
 If webhook delivery fails:
+
 - **Retry 1**: After 1 minute
 - **Retry 2**: After 5 minutes
 - **Retry 3**: After 15 minutes
@@ -98,6 +100,7 @@ Success = HTTP status 200-299
 ### 7. **Webhook Delivery Log**
 
 The Webhooks settings tab shows:
+
 - Event type
 - Status (success/failed/pending)
 - Number of attempts
@@ -107,11 +110,11 @@ The Webhooks settings tab shows:
 ## Files Created/Modified
 
 ### Backend
+
 - `convex/webhookDelivery.ts` - NEW: Webhook delivery system
   - `queueWebhook` - Queue webhook for delivery
   - `deliverWebhook` - Send HTTP request with signature
   - `listWebhookDeliveries` - View delivery history
-  
 - `convex/apps.ts` - MODIFIED: Added webhook management
   - `updateWebhookConfig` - Save webhook URL/secret
   - `testWebhook` - Send test webhook
@@ -129,6 +132,7 @@ The Webhooks settings tab shows:
   - `webhookDeliveries` table - Delivery history
 
 ### Frontend
+
 - `components/settings/settings-webhooks-section.tsx` - REPLACED
   - Webhook configuration form
   - Event documentation
@@ -140,29 +144,31 @@ The Webhooks settings tab shows:
 Your clients should:
 
 1. **Set up webhook endpoint**
+
    ```
    POST https://their-api.com/webhooks/credibill
    ```
 
 2. **Handle events**
+
    ```javascript
    switch (event) {
-     case 'subscription.created':
+     case "subscription.created":
        // Activate customer's account
        // Start their trial/billing period
        break;
-       
-     case 'subscription.renewed':
+
+     case "subscription.renewed":
        // Collect payment
        // Extend access for next period
        break;
-       
-     case 'subscription.cancelled':
+
+     case "subscription.cancelled":
        // Disable customer's access
        // Send goodbye email
        break;
-       
-     case 'subscription.plan_changed':
+
+     case "subscription.plan_changed":
        // Update customer's features
        // If upgrade, collect proration amount
        break;
@@ -178,7 +184,8 @@ Your clients should:
 
 ### Scenario: Customer creates subscription
 
-1. **Client calls your API**: 
+1. **Client calls your API**:
+
    ```bash
    POST /api/subscriptions
    {
@@ -190,6 +197,7 @@ Your clients should:
 2. **You create subscription** (already working)
 
 3. **CrediBill sends webhook** (NEW):
+
    ```bash
    POST https://client-api.com/webhooks/credibill
    {
@@ -211,10 +219,10 @@ Your clients should:
    // Client's code
    async function handleSubscriptionCreated(data) {
      const { subscription, customer, plan } = data;
-     
+
      // Activate customer's account
      await activateCustomer(customer.externalId, plan.features);
-     
+
      // Schedule payment collection for trialEndsAt
      await schedulePayment(subscription.nextPaymentDate, plan.baseAmount);
    }
@@ -232,6 +240,7 @@ Your clients should:
 ## What's Next
 
 Consider adding:
+
 - Cron job to send `payment.due` webhooks before `nextPaymentDate`
 - Invoice created webhooks
 - Usage threshold webhooks

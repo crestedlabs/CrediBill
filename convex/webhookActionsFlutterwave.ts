@@ -138,6 +138,18 @@ export const handleFlutterwaveWebhook = internalAction({
         }
       }
 
+      // Find transaction by tx_ref within this app's context
+      let transaction = null;
+      if (txRef) {
+        transaction = await ctx.runQuery(
+          internal.webhookQueries.findTransactionByReferenceAndApp,
+          {
+            reference: txRef,
+            appId: args.appId,
+          }
+        );
+      }
+
       // Check for replay attack
       const timestamp = data.created_at
         ? new Date(data.created_at).getTime()
@@ -145,13 +157,13 @@ export const handleFlutterwaveWebhook = internalAction({
       if (isReplayAttack(timestamp)) {
         console.error("Potential replay attack detected");
         await ctx.runMutation(internal.webhookMutations.logWebhook, {
-          organizationId: transaction.organizationId,
-          appId: transaction.appId,
+          organizationId: app.organizationId,
+          appId: args.appId,
           provider: "flutterwave",
           event,
           payload: webhookData,
           status: "failed",
-          paymentTransactionId: transaction._id,
+          paymentTransactionId: transaction?._id,
           signatureValid: true,
         });
         return { success: false, error: "Webhook too old" };
@@ -165,15 +177,12 @@ export const handleFlutterwaveWebhook = internalAction({
       } else if (flwStatus === "failed") {
         status = "failed";
       }
-
-      // Find transaction by tx_ref within this app's context
-      let transaction = null;
       if (txRef) {
         transaction = await ctx.runQuery(
           internal.webhookQueries.findTransactionByReferenceAndApp,
-          { 
+          {
             reference: txRef,
-            appId: args.appId 
+            appId: args.appId,
           }
         );
       }

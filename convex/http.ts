@@ -35,7 +35,7 @@ async function authenticateApiKey(
     return {
       error: new Response(
         JSON.stringify({
-          error: keyValidation.error || "Invalid API key",
+          error: keyValidation.error || "The API key is invalid",
         }),
         { status: 401, headers: { "Content-Type": "application/json" } }
       ),
@@ -143,7 +143,16 @@ http.route({
       const { appId, apiKeyId } = auth;
 
       const body = await request.json();
-      const { email, first_name, last_name, phone } = body;
+      const {
+        email,
+        first_name,
+        last_name,
+        phone,
+        externalCustomerId,
+        metadata,
+        type,
+        status,
+      } = body;
 
       if (!email) {
         return new Response(
@@ -152,13 +161,20 @@ http.route({
         );
       }
 
-      const customerId = await ctx.runMutation(api.customers.createCustomer, {
-        appId,
-        email,
-        first_name: first_name || "",
-        last_name: last_name || "",
-        phone: phone || "",
-      });
+      const customerId = await ctx.runMutation(
+        internal.customers.createCustomerInternal,
+        {
+          appId,
+          email,
+          first_name,
+          last_name,
+          phone,
+          externalCustomerId,
+          metadata,
+          type,
+          status,
+        }
+      );
 
       await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
 
@@ -190,9 +206,12 @@ http.route({
 
       if (!customerId) {
         // List customers for the app
-        const customers = await ctx.runQuery(api.customers.listCustomers, {
-          appId,
-        });
+        const customers = await ctx.runQuery(
+          internal.customers.listCustomersInternal,
+          {
+            appId,
+          }
+        );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
 
@@ -202,16 +221,13 @@ http.route({
         });
       } else {
         // Get specific customer
-        const customer = await ctx.runQuery(api.customers.getCustomer, {
-          customerId: customerId as Id<"customers">,
-        });
-
-        if (!customer || customer.appId !== appId) {
-          return new Response(JSON.stringify({ error: "Customer not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const customer = await ctx.runQuery(
+          internal.customers.getCustomerInternal,
+          {
+            customerId: customerId as Id<"customers">,
+            appId,
+          }
+        );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
 
@@ -229,7 +245,7 @@ http.route({
   }),
 });
 
-// Create subscription endpoint
+// Subscriptions API endpoints
 http.route({
   path: "/api/subscriptions",
   method: "POST",
@@ -252,7 +268,7 @@ http.route({
       }
 
       const subscriptionId = await ctx.runMutation(
-        api.subscriptions.createSubscription,
+        internal.subscriptions.createSubscriptionInternal,
         {
           appId,
           customerId,
@@ -276,7 +292,257 @@ http.route({
   }),
 });
 
-// List invoices endpoint
+http.route({
+  path: "/api/subscriptions",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const auth = await authenticateApiKey(ctx, request, "read");
+      if (auth.error) return auth.error;
+      const { appId, apiKeyId } = auth;
+
+      const url = new URL(request.url);
+      const subscriptionId = url.searchParams.get("subscriptionId");
+      const customerId = url.searchParams.get("customerId");
+      const planId = url.searchParams.get("planId");
+      const status = url.searchParams.get("status");
+
+      if (subscriptionId) {
+        // Get specific subscription
+        const subscription = await ctx.runQuery(
+          internal.subscriptions.getSubscriptionInternal,
+          {
+            subscriptionId: subscriptionId as Id<"subscriptions">,
+            appId,
+          }
+        );
+
+        await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+        return new Response(JSON.stringify({ subscription }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      } else {
+        // List subscriptions with optional filters
+        const subscriptions = await ctx.runQuery(
+          internal.subscriptions.listSubscriptionsInternal,
+          {
+            appId,
+            customerId: customerId
+              ? (customerId as Id<"customers">)
+              : undefined,
+            planId: planId ? (planId as Id<"plans">) : undefined,
+            status: status as any,
+          }
+        );
+
+        await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+        return new Response(JSON.stringify({ subscriptions }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/api/subscriptions",
+  method: "DELETE",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const auth = await authenticateApiKey(ctx, request, "write");
+      if (auth.error) return auth.error;
+      const { appId, apiKeyId } = auth;
+
+      const url = new URL(request.url);
+      const subscriptionId = url.searchParams.get("subscriptionId");
+      const cancelAtPeriodEnd = url.searchParams.get("cancelAtPeriodEnd");
+
+      if (!subscriptionId) {
+        return new Response(
+          JSON.stringify({ error: "Missing subscriptionId parameter" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(internal.subscriptions.cancelSubscriptionInternal, {
+        subscriptionId: subscriptionId as Id<"subscriptions">,
+        appId,
+        cancelAtPeriodEnd: cancelAtPeriodEnd === "true",
+      });
+
+      await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Subscription cancelled" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+// Plans API endpoints
+http.route({
+  path: "/api/plans",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const auth = await authenticateApiKey(ctx, request, "write");
+      if (auth.error) return auth.error;
+      const { appId, apiKeyId } = auth;
+
+      const body = await request.json();
+
+      const planId = await ctx.runMutation(internal.plans.createPlanInternal, {
+        appId,
+        ...body,
+      });
+
+      await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+      return new Response(JSON.stringify({ success: true, planId }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/api/plans",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const auth = await authenticateApiKey(ctx, request, "read");
+      if (auth.error) return auth.error;
+      const { appId, apiKeyId } = auth;
+
+      const plans = await ctx.runQuery(internal.plans.getPlansByAppInternal, {
+        appId,
+      });
+
+      await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+      return new Response(JSON.stringify({ plans }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/api/plans",
+  method: "PATCH",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const auth = await authenticateApiKey(ctx, request, "write");
+      if (auth.error) return auth.error;
+      const { appId, apiKeyId } = auth;
+
+      const body = await request.json();
+      const { planId, ...updates } = body;
+
+      if (!planId) {
+        return new Response(
+          JSON.stringify({ error: "Missing planId in request body" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(internal.plans.updatePlanInternal, {
+        planId,
+        appId,
+        ...updates,
+      });
+
+      await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Plan updated" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/api/plans",
+  method: "DELETE",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const auth = await authenticateApiKey(ctx, request, "write");
+      if (auth.error) return auth.error;
+      const { appId, apiKeyId } = auth;
+
+      const url = new URL(request.url);
+      const planId = url.searchParams.get("planId");
+
+      if (!planId) {
+        return new Response(
+          JSON.stringify({ error: "Missing planId parameter" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(internal.plans.deletePlanInternal, {
+        planId: planId as Id<"plans">,
+        appId,
+      });
+
+      await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Plan deleted" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+// Invoices API endpoints
 http.route({
   path: "/api/invoices",
   method: "GET",
@@ -289,20 +555,18 @@ http.route({
       const url = new URL(request.url);
       const invoiceId = url.searchParams.get("invoiceId");
       const customerId = url.searchParams.get("customerId");
+      const subscriptionId = url.searchParams.get("subscriptionId");
       const status = url.searchParams.get("status");
 
       if (invoiceId) {
         // Get specific invoice
-        const invoice = await ctx.runQuery(api.invoices.getInvoiceById, {
-          invoiceId: invoiceId as Id<"invoices">,
-        });
-
-        if (!invoice || invoice.appId !== appId) {
-          return new Response(JSON.stringify({ error: "Invoice not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const invoice = await ctx.runQuery(
+          internal.invoices.getInvoiceByIdInternal,
+          {
+            invoiceId: invoiceId as Id<"invoices">,
+            appId,
+          }
+        );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
 
@@ -311,12 +575,20 @@ http.route({
           headers: { "Content-Type": "application/json" },
         });
       } else {
-        // List invoices for the app
-        const invoices = await ctx.runQuery(api.invoices.listInvoices, {
-          appId,
-          customerId: customerId as Id<"customers"> | undefined,
-          status: status as any,
-        });
+        // List invoices with optional filters
+        const invoices = await ctx.runQuery(
+          internal.invoices.listInvoicesInternal,
+          {
+            appId,
+            customerId: customerId
+              ? (customerId as Id<"customers">)
+              : undefined,
+            subscriptionId: subscriptionId
+              ? (subscriptionId as Id<"subscriptions">)
+              : undefined,
+            status: status as any,
+          }
+        );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
 
@@ -325,6 +597,53 @@ http.route({
           headers: { "Content-Type": "application/json" },
         });
       }
+    } catch (error: any) {
+      return new Response(
+        JSON.stringify({ error: error.message || "Internal server error" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+  }),
+});
+
+http.route({
+  path: "/api/invoices",
+  method: "PATCH",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const auth = await authenticateApiKey(ctx, request, "write");
+      if (auth.error) return auth.error;
+      const { appId, apiKeyId } = auth;
+
+      const body = await request.json();
+      const { invoiceId, status, amountPaid, paidDate } = body;
+
+      if (!invoiceId || !status) {
+        return new Response(
+          JSON.stringify({
+            error: "Missing required fields: invoiceId, status",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+
+      await ctx.runMutation(internal.invoices.updateInvoiceStatusInternal, {
+        invoiceId,
+        appId,
+        status,
+        amountPaid,
+        paidDate,
+      });
+
+      await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Invoice updated" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
@@ -412,30 +731,55 @@ http.route({
 });
 
 /**
- * PawaPay webhook endpoint
- * Signature: X-Signature header with HMAC-SHA256
+ * PawaPay webhook endpoint (via Cloudflare Worker)
+ * Receives forwarded webhooks from Cloudflare Worker at https://api.credibill.tech
+ *
+ * Expected payload from Worker:
+ * {
+ *   appId: "j57eddw6wf2c80mfrtwxfzrhbs7y5wsd",
+ *   payload: { data: {...}, status: "FOUND" }
+ * }
+ *
+ * Authentication: X-Webhook-Secret header (case-insensitive)
  */
 http.route({
-  path: "/webhooks/pawapay/{appId}",
+  path: "/webhooks/pawapay",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
-    const payload = await request.text();
-    const signature = request.headers.get("x-signature") || "";
-    const appId = request.url.split("/").pop() as Id<"apps">;
+    try {
+      // Validate webhook secret (stored in Convex environment variables)
+      const EXPECTED_SECRET = process.env.CREDIBILL_WEBHOOK_SECRET;
+      const providedSecret = request.headers.get("x-webhook-secret");
 
-    const result = await ctx.runAction(
-      internal.webhookActions.handlePawapayWebhook,
-      {
-        payload,
-        signature,
-        appId,
+      if (!EXPECTED_SECRET || providedSecret !== EXPECTED_SECRET) {
+        console.error("[PawaPay] Unauthorized webhook attempt");
+        return new Response("Unauthorized", { status: 401 });
       }
-    );
 
-    return new Response(JSON.stringify(result), {
-      status: result.success ? 200 : 400,
-      headers: { "Content-Type": "application/json" },
-    });
+      // Parse request body from Cloudflare Worker
+      const body = await request.json();
+      const { appId, payload } = body;
+
+      if (!appId || !payload) {
+        console.error("[PawaPay] Missing appId or payload in request body");
+        return new Response("Bad Request", { status: 400 });
+      }
+
+      // Schedule async processing (does not block response)
+      await ctx.scheduler.runAfter(
+        0,
+        internal.webhookActions.handlePawapayWebhook,
+        {
+          payload: JSON.stringify(payload),
+          appId: appId as Id<"apps">,
+        }
+      );
+
+      return new Response("OK", { status: 200 });
+    } catch (error: any) {
+      console.error("[PawaPay] Error processing webhook:", error);
+      return new Response("OK", { status: 200 }); // Still return 200 for Worker
+    }
   }),
 });
 
@@ -488,6 +832,14 @@ http.route({
       status: result.success ? 200 : 400,
       headers: { "Content-Type": "application/json" },
     });
+  }),
+});
+
+http.route({
+  path: "/hello-pawapay",
+  method: "POST",
+  handler: httpAction(async () => {
+    return new Response("I acknowledge receipt", { status: 200 });
   }),
 });
 
