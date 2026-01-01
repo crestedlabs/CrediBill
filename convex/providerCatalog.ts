@@ -5,9 +5,7 @@ import { v } from "convex/values";
 export const getAllProviders = query({
   args: {},
   handler: async (ctx) => {
-    const providers = await ctx.db
-      .query("providerCatalog")
-      .collect();
+    const providers = await ctx.db.query("providerCatalog").collect();
 
     // Sort by sortOrder
     return providers.sort((a, b) => a.sortOrder - b.sortOrder);

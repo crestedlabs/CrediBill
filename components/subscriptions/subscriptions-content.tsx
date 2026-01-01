@@ -267,9 +267,43 @@ function SubscriptionsManager() {
                             ? formatDate(subscription.trialEndsAt)
                             : "—";
 
-                        const nextPayment = subscription.nextPaymentDate
-                          ? formatDate(subscription.nextPaymentDate)
-                          : formatDate(subscription.currentPeriodEnd);
+                        // Handle next payment date based on status
+                        let nextPayment = "—";
+                        let nextPaymentLabel = "";
+
+                        if (subscription.status === "pending_payment") {
+                          // If payment is pending and the period end is in the past, it's overdue
+                          const periodEnd =
+                            subscription.currentPeriodEnd ||
+                            subscription.nextPaymentDate;
+                          if (periodEnd && periodEnd < Date.now()) {
+                            nextPayment = formatDate(periodEnd);
+                            nextPaymentLabel = "Overdue since";
+                          } else {
+                            nextPayment = periodEnd
+                              ? formatDate(periodEnd)
+                              : "—";
+                            nextPaymentLabel = "Payment due";
+                          }
+                        } else if (subscription.status === "past_due") {
+                          const dueDate =
+                            subscription.currentPeriodEnd ||
+                            subscription.nextPaymentDate;
+                          nextPayment = dueDate ? formatDate(dueDate) : "—";
+                          nextPaymentLabel = "Overdue since";
+                        } else if (
+                          subscription.status === "active" ||
+                          subscription.status === "trialing"
+                        ) {
+                          nextPayment = subscription.nextPaymentDate
+                            ? formatDate(subscription.nextPaymentDate)
+                            : formatDate(subscription.currentPeriodEnd);
+                        } else if (
+                          subscription.status === "cancelled" ||
+                          subscription.status === "expired"
+                        ) {
+                          nextPayment = "—";
+                        }
 
                         const startedDate = formatDate(subscription.startDate);
 
@@ -310,9 +344,20 @@ function SubscriptionsManager() {
                                 <div className="font-medium text-slate-900">
                                   {nextPayment}
                                 </div>
+                                {nextPaymentLabel && (
+                                  <div
+                                    className={`text-xs mt-0.5 ${
+                                      nextPaymentLabel.includes("Overdue")
+                                        ? "text-red-600 font-medium"
+                                        : "text-amber-600"
+                                    }`}
+                                  >
+                                    {nextPaymentLabel}
+                                  </div>
+                                )}
                                 {status === "trialing" &&
                                   subscription.trialEndsAt && (
-                                    <div className="text-xs text-amber-600 mt-0.5">
+                                    <div className="text-xs text-blue-600 mt-0.5">
                                       Trial ends
                                     </div>
                                   )}
@@ -377,9 +422,10 @@ function SubscriptionActionMenu({
         action: "cancel_at_period_end",
       });
 
-      const message = status === "trialing"
-        ? "Subscription will cancel at trial end"
-        : "Subscription will cancel at period end";
+      const message =
+        status === "trialing"
+          ? "Subscription will cancel at trial end"
+          : "Subscription will cancel at period end";
 
       toast.success(message, {
         description: `${customerEmail} - ${planName}`,
@@ -411,7 +457,9 @@ function SubscriptionActionMenu({
             status === "paused") && (
             <DropdownMenuItem onClick={() => setShowCancelDialog(true)}>
               <XCircle className="mr-2 h-4 w-4" />
-              {status === "trialing" ? "Cancel at trial end" : "Cancel at period end"}
+              {status === "trialing"
+                ? "Cancel at trial end"
+                : "Cancel at period end"}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -422,14 +470,17 @@ function SubscriptionActionMenu({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {status === "trialing" ? "Cancel at Trial End" : "Cancel at Period End"}
+              {status === "trialing"
+                ? "Cancel at Trial End"
+                : "Cancel at Period End"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {status === "trialing" ? (
                 <>
                   This will cancel the subscription for{" "}
-                  <strong>{customerEmail}</strong> when the trial ends. They will
-                  retain access until then, and no payment will be collected.
+                  <strong>{customerEmail}</strong> when the trial ends. They
+                  will retain access until then, and no payment will be
+                  collected.
                 </>
               ) : (
                 <>

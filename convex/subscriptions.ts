@@ -4,10 +4,24 @@ import {
   internalMutation,
   internalQuery,
 } from "./_generated/server";
+import { Id } from "./_generated/dataModel";
 import { getCurrentUser } from "./users";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
+
+// ============================================================================
+// Type definitions for API responses
+// ============================================================================
+
+type CreateSubscriptionResult = {
+  subscriptionId: Id<"subscriptions">;
+  invoiceId: Id<"invoices"> | null;
+  status: string;
+  trialEndsAt: number | null;
+  nextBillingDate: number | null; // null until first payment received
+  paymentDueDate: number | null; // When first payment is expected (for pending_payment)
+};
 
 // ============================================================================
 // INTERNAL API-KEY-AUTHENTICATED VERSIONS
@@ -23,7 +37,7 @@ export const createSubscriptionInternal = internalMutation({
     planId: v.id("plans"),
     startDate: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<CreateSubscriptionResult> => {
     const app = await ctx.db.get(args.appId);
     if (!app) throw new ConvexError("App not found");
 
@@ -127,9 +141,9 @@ export const createSubscriptionInternal = internalMutation({
     const subscription = await ctx.db.get(subscriptionId);
 
     // Generate invoice immediately if subscription requires payment
+    let invoiceId = undefined;
     if (!isTrialing) {
-      await ctx.scheduler.runAfter(
-        0,
+      invoiceId = await ctx.runMutation(
         internal.invoices.generateInvoiceInternal,
         {
           subscriptionId,
@@ -149,7 +163,20 @@ export const createSubscriptionInternal = internalMutation({
       },
     });
 
-    return subscriptionId;
+    // Return response with invoice ID (caller can fetch full invoice details if needed)
+    // - nextBillingDate: When the NEXT billing cycle starts (only known after first payment)
+    //   For pending_payment: null (unknown until payment determines billing start)
+    //   For trialing: trialEndDate (when trial ends and first payment is due)
+    // - paymentDueDate: When payment is expected (useful for pending_payment)
+    return {
+      subscriptionId,
+      invoiceId: (invoiceId ?? null) as Id<"invoices"> | null,
+      status:
+        subscription?.status ?? (isTrialing ? "trialing" : "pending_payment"),
+      trialEndsAt: isTrialing ? trialEndDate : null,
+      nextBillingDate: isTrialing ? trialEndDate : null, // null until payment received
+      paymentDueDate: isTrialing ? null : startDate, // When first payment is expected (for pending_payment)
+    };
   },
 });
 

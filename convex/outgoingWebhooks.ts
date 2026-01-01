@@ -264,7 +264,11 @@ export const triggerWebhooks = internalAction({
     }
 
     // Create webhook logs and send webhooks
-    const results = await Promise.all(
+    const results: Array<{
+      success: boolean;
+      statusCode?: number;
+      error?: string;
+    }> = await Promise.all(
       webhooks.map(async (webhook: any) => {
         // Create webhook log
         const logId = await ctx.runMutation(

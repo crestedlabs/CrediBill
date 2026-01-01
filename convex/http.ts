@@ -267,7 +267,7 @@ http.route({
         );
       }
 
-      const subscriptionId = await ctx.runMutation(
+      const result = await ctx.runMutation(
         internal.subscriptions.createSubscriptionInternal,
         {
           appId,
@@ -279,7 +279,7 @@ http.route({
 
       await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
 
-      return new Response(JSON.stringify({ success: true, subscriptionId }), {
+      return new Response(JSON.stringify({ success: true, ...result }), {
         status: 201,
         headers: { "Content-Type": "application/json" },
       });
@@ -591,6 +591,16 @@ http.route({
         );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
+
+        // If filtering by subscription and status=open, return single invoice or null
+        // This makes it easier for developers to get the current unpaid invoice
+        if (subscriptionId && status === "open") {
+          const openInvoice = invoices[0] || null;
+          return new Response(JSON.stringify({ invoice: openInvoice }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
 
         return new Response(JSON.stringify({ invoices }), {
           status: 200,

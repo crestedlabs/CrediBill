@@ -163,7 +163,7 @@ function InvoicesManager() {
   const filteredInvoices =
     invoices?.filter((inv) => {
       const matchesSearch =
-        inv.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        inv._id.toLowerCase().includes(searchQuery.toLowerCase()) ||
         inv.customer?.email.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesSearch;
     }) || [];
@@ -328,7 +328,7 @@ function InvoicesManager() {
                             <td className="px-4 py-4">
                               <div>
                                 <p className="font-mono font-medium text-slate-900">
-                                  {invoice.invoiceNumber}
+                                  {invoice._id}
                                 </p>
                                 <p className="text-xs text-slate-500 sm:hidden">
                                   {customerName}
@@ -452,7 +452,7 @@ function InvoiceDetailsSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full max-w-md overflow-y-auto px-6">
         <SheetHeader className="px-0">
-          <SheetTitle className="text-left">{invoice.invoiceNumber}</SheetTitle>
+          <SheetTitle className="text-left">{invoice._id}</SheetTitle>
         </SheetHeader>
 
         <div className="space-y-6 pt-6 px-0">

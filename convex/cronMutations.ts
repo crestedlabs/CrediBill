@@ -5,6 +5,7 @@
  */
 
 import { internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
 /**
@@ -25,6 +26,13 @@ export const markTrialExpired = internalMutation({
       status: "pending_payment",
       currentPeriodEnd: now, // Grace period starts from now (trial end)
       nextPaymentDate: now, // Payment due immediately
+    });
+
+    // Generate invoice for first payment now that trial has ended
+    await ctx.scheduler.runAfter(0, internal.invoices.generateInvoiceInternal, {
+      subscriptionId: args.subscriptionId,
+      periodStart: now,
+      periodEnd: now,
     });
   },
 });

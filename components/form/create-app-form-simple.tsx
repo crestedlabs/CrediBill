@@ -65,7 +65,7 @@ export function CreateAppFormSimple() {
       !(formData as any).paymentProviderId
     ) {
       // Default to first active provider
-      const defaultProvider = providers.find(p => p.isActive) || providers[0];
+      const defaultProvider = providers.find((p) => p.isActive) || providers[0];
       setFormData((prev) => ({
         ...prev,
         paymentProviderId: defaultProvider._id as string,
@@ -122,8 +122,15 @@ export function CreateAppFormSimple() {
   };
 
   // Check if there are any active providers
-  const hasActiveProviders = providers?.some(p => p.isActive) ?? false;
-  const allProvidersDown = providers && providers.length > 0 && !hasActiveProviders;
+  const hasActiveProviders = providers?.some((p) => p.isActive) ?? false;
+  const allProvidersDown =
+    providers && providers.length > 0 && !hasActiveProviders;
+
+  // Get selected provider to check if it's PawaPay (for disabling grace period)
+  const selectedProvider = providers?.find(
+    (p) => p._id === (formData as any).paymentProviderId
+  );
+  const isPawaPay = selectedProvider?.name?.toLowerCase() === "pawapay";
 
   const canSubmit =
     formData.name.length >= 3 &&
@@ -210,18 +217,20 @@ export function CreateAppFormSimple() {
             <Alert className="border-red-200 bg-red-50">
               <AlertCircle className="h-4 w-4 text-red-600" />
               <AlertDescription className="text-red-900">
-                <span className="font-semibold">We're sorry!</span> All payment providers are currently unavailable. 
-                You cannot create an app at this time since payments won't be processed. 
-                Please check back later or contact support for assistance.
+                <span className="font-semibold">We're sorry!</span> All payment
+                providers are currently unavailable. You cannot create an app at
+                this time since payments won't be processed. Please check back
+                later or contact support for assistance.
               </AlertDescription>
             </Alert>
           ) : (
             <Alert className="border-amber-200 bg-amber-50">
               <AlertCircle className="h-4 w-4 text-amber-600" />
               <AlertDescription className="text-amber-900">
-                <span className="font-semibold">Important:</span> Payment provider
-                selection is <strong>permanent and cannot be changed</strong>{" "}
-                after app creation. Choose carefully based on your business needs.
+                <span className="font-semibold">Important:</span> Payment
+                provider selection is{" "}
+                <strong>permanent and cannot be changed</strong> after app
+                creation. Choose carefully based on your business needs.
               </AlertDescription>
             </Alert>
           )}
@@ -237,7 +246,7 @@ export function CreateAppFormSimple() {
                 const isSelected =
                   (formData as any).paymentProviderId === provider._id;
                 const isDisabled = !provider.isActive;
-                
+
                 return (
                   <button
                     key={provider._id}
@@ -255,8 +264,8 @@ export function CreateAppFormSimple() {
                       isDisabled
                         ? "cursor-not-allowed bg-slate-100 border-slate-300 opacity-60 grayscale"
                         : isSelected
-                        ? "border-teal-600 bg-teal-50 cursor-pointer"
-                        : "border-slate-200 hover:border-slate-300 bg-white cursor-pointer"
+                          ? "border-teal-600 bg-teal-50 cursor-pointer"
+                          : "border-slate-200 hover:border-slate-300 bg-white cursor-pointer"
                     }`}
                   >
                     {isDisabled && (
@@ -308,8 +317,8 @@ export function CreateAppFormSimple() {
                           isDisabled
                             ? "text-slate-400"
                             : isSelected
-                            ? "text-teal-700"
-                            : "text-slate-600"
+                              ? "text-teal-700"
+                              : "text-slate-600"
                         }`}
                       >
                         {provider.description}
@@ -320,8 +329,8 @@ export function CreateAppFormSimple() {
                           isDisabled
                             ? "text-slate-400"
                             : isSelected
-                            ? "text-teal-700"
-                            : "text-slate-500"
+                              ? "text-teal-700"
+                              : "text-slate-500"
                         }`}
                       >
                         <div className="flex items-center justify-center gap-2">
@@ -431,14 +440,19 @@ export function CreateAppFormSimple() {
 
             <FormNumberField
               label="Grace Period (days)"
-              value={formData.gracePeriod}
+              value={isPawaPay ? 0 : formData.gracePeriod}
               onChange={(value) =>
                 setFormData((prev) => ({ ...prev, gracePeriod: value }))
               }
               min={0}
               max={30}
-              helpText="Additional days before subscription cancellation"
+              helpText={
+                isPawaPay
+                  ? "Not applicable for mobile money (requires customer interaction)"
+                  : "Additional days before subscription cancellation"
+              }
               required
+              disabled={isPawaPay}
             />
           </div>
         </CardContent>

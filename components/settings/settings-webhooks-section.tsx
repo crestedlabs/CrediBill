@@ -188,7 +188,7 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
             <Input
               id="webhook-url"
               type="url"
-              placeholder="https://your-api.com/webhooks/credibill"
+              placeholder="https://your-api.com/webhooks/myapp"
               value={webhookUrl}
               onChange={(e) => setWebhookUrl(e.target.value)}
             />

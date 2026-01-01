@@ -164,6 +164,7 @@ export const updateTransactionFromWebhook = internalMutation({
             };
 
             // If this is the first payment (pending_payment -> active), set the billing period
+            // Period starts from payment date - service begins when payment is received
             if (
               subscription.status === "pending_payment" &&
               plan?.interval !== "one-time"
@@ -196,18 +197,81 @@ export const updateTransactionFromWebhook = internalMutation({
               );
             }
           } else if (subscription.status === "active") {
-            // Just update payment date for active subscriptions
-            await ctx.db.patch(transaction.subscriptionId, {
-              lastPaymentDate: now,
-              failedPaymentAttempts: 0, // Reset failure count
-            });
+            // Renewal payment for already active subscription
+            // New period starts from payment date - service resumes when payment is received
+            const plan = await ctx.db.get(subscription.planId);
+            if (plan && plan.interval !== "one-time") {
+              let periodDuration: number;
+              switch (plan.interval) {
+                case "monthly":
+                  periodDuration = 30 * 24 * 60 * 60 * 1000;
+                  break;
+                case "quarterly":
+                  periodDuration = 90 * 24 * 60 * 60 * 1000;
+                  break;
+                case "yearly":
+                  periodDuration = 365 * 24 * 60 * 60 * 1000;
+                  break;
+                default:
+                  periodDuration = 30 * 24 * 60 * 60 * 1000;
+              }
+
+              await ctx.db.patch(transaction.subscriptionId, {
+                lastPaymentDate: now,
+                failedPaymentAttempts: 0,
+                currentPeriodStart: now,
+                currentPeriodEnd: now + periodDuration,
+                nextPaymentDate: now + periodDuration,
+              });
+
+              // Send subscription.renewed webhook
+              const customer = await ctx.db.get(subscription.customerId);
+              if (customer) {
+                await ctx.scheduler.runAfter(
+                  0,
+                  internal.webhookDelivery.queueWebhook,
+                  {
+                    appId: subscription.appId,
+                    event: "subscription.renewed",
+                    payload: {
+                      subscription: {
+                        ...subscription,
+                        currentPeriodStart: now,
+                        currentPeriodEnd: now + periodDuration,
+                        nextPaymentDate: now + periodDuration,
+                      },
+                      customer,
+                      payment_date: now,
+                    },
+                  }
+                );
+              }
+            } else {
+              // Just update payment date for one-time plans
+              await ctx.db.patch(transaction.subscriptionId, {
+                lastPaymentDate: now,
+                failedPaymentAttempts: 0,
+              });
+            }
           }
         }
       }
     }
 
     // If failed and this is a subscription payment, increment failure count
+    // SECURITY: Only process failures if invoice is NOT already paid (immutability)
     if (args.status === "failed" && transaction.subscriptionId) {
+      // Check if invoice is already paid - if so, ignore failure
+      if (transaction.invoiceId) {
+        const invoice = await ctx.db.get(transaction.invoiceId);
+        if (invoice && invoice.status === "paid") {
+          console.warn(
+            `[SECURITY] Ignoring failed payment update for already-paid invoice ${transaction.invoiceId}. Transaction updated but subscription not affected.`
+          );
+          return; // Exit early - don't increment failures
+        }
+      }
+
       const subscription = await ctx.db.get(transaction.subscriptionId);
       if (subscription) {
         const failureCount = (subscription.failedPaymentAttempts || 0) + 1;
@@ -272,6 +336,8 @@ export const createTransactionFromWebhook = internalMutation({
     customerId: v.optional(v.id("customers")),
     subscriptionId: v.optional(v.id("subscriptions")),
     invoiceId: v.optional(v.id("invoices")),
+    failureCode: v.optional(v.string()),
+    failureReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get the provider catalog ID for this app
@@ -280,28 +346,265 @@ export const createTransactionFromWebhook = internalMutation({
       throw new Error("App not found or payment provider not configured");
     }
 
-    return await ctx.db.insert("paymentTransactions", {
+    // Check if invoice is already paid (prevent double payment)
+    if (args.invoiceId && args.status === "success") {
+      const invoice = await ctx.db.get(args.invoiceId);
+      if (invoice && invoice.status === "paid") {
+        console.warn(
+          `Invoice ${args.invoiceId} already paid. Recording transaction but skipping activation.`
+        );
+        // Still record the transaction but don't activate subscription
+        const transactionId = await ctx.db.insert("paymentTransactions", {
+          organizationId: args.organizationId,
+          appId: args.appId,
+          customerId: args.customerId!,
+          providerCatalogId: app.paymentProviderId,
+          providerTransactionId: args.providerTransactionId,
+          providerReference: args.providerTransactionId,
+          subscriptionId: args.subscriptionId,
+          invoiceId: args.invoiceId,
+          amount: args.amount,
+          currency: args.currency,
+          paymentMethod: "other",
+          status: args.status,
+          attemptNumber: 1,
+          isRetry: false,
+          providerResponse: args.providerResponse,
+          metadata: {
+            ...args.metadata,
+            note: "Invoice already paid - duplicate payment",
+          },
+          initiatedAt: Date.now(),
+          completedAt: Date.now(),
+        });
+        return transactionId;
+      }
+    }
+
+    const transactionId = await ctx.db.insert("paymentTransactions", {
       organizationId: args.organizationId,
       appId: args.appId,
-      customerId: args.customerId!, // Required - validated before calling this mutation
+      customerId: args.customerId!,
       providerCatalogId: app.paymentProviderId,
       providerTransactionId: args.providerTransactionId,
-      providerReference: args.providerTransactionId, // Use provider's depositId as our reference
+      providerReference: args.providerTransactionId,
       subscriptionId: args.subscriptionId,
       invoiceId: args.invoiceId,
       amount: args.amount,
       currency: args.currency,
-      paymentMethod: "other", // Required field - will be updated if we know the method
+      paymentMethod: "other",
       status: args.status,
-      attemptNumber: 1, // First webhook notification is attempt 1
-      isRetry: false, // Not a retry, this is tracking the payment
+      attemptNumber: 1,
+      isRetry: false,
       providerResponse: args.providerResponse,
       metadata: args.metadata,
+      failureCode: args.failureCode,
+      failureReason: args.failureReason,
       initiatedAt: Date.now(),
       completedAt:
         args.status === "success" || args.status === "failed"
           ? Date.now()
           : undefined,
     });
+
+    // If successful payment, handle invoice and subscription updates
+    if (args.status === "success") {
+      // Mark invoice as paid
+      if (args.invoiceId) {
+        const invoice = await ctx.db.get(args.invoiceId);
+        if (invoice && invoice.status !== "paid") {
+          await ctx.db.patch(args.invoiceId, {
+            status: "paid",
+            amountPaid: args.amount,
+          });
+        }
+      }
+
+      // Activate subscription if it's trialing or pending first payment
+      if (args.subscriptionId) {
+        const subscription = await ctx.db.get(args.subscriptionId);
+        if (subscription) {
+          const now = Date.now();
+
+          // Activate from trialing or pending_payment status
+          if (
+            subscription.status === "trialing" ||
+            subscription.status === "pending_payment"
+          ) {
+            // Calculate billing period based on plan interval
+            const plan = await ctx.db.get(subscription.planId);
+            let periodDuration: number;
+            if (plan) {
+              switch (plan.interval) {
+                case "monthly":
+                  periodDuration = 30 * 24 * 60 * 60 * 1000;
+                  break;
+                case "quarterly":
+                  periodDuration = 90 * 24 * 60 * 60 * 1000;
+                  break;
+                case "yearly":
+                  periodDuration = 365 * 24 * 60 * 60 * 1000;
+                  break;
+                case "one-time":
+                  periodDuration = 0;
+                  break;
+                default:
+                  periodDuration = 30 * 24 * 60 * 60 * 1000;
+              }
+            } else {
+              periodDuration = 30 * 24 * 60 * 60 * 1000;
+            }
+
+            const updateData: any = {
+              status: "active",
+              lastPaymentDate: now,
+              failedPaymentAttempts: 0,
+            };
+
+            // For first payment (trialing or pending_payment), set the billing period
+            // Billing period always starts from payment date, not trial end date
+            if (
+              (subscription.status === "pending_payment" ||
+                subscription.status === "trialing") &&
+              plan?.interval !== "one-time"
+            ) {
+              updateData.currentPeriodStart = now;
+              updateData.currentPeriodEnd = now + periodDuration;
+              updateData.nextPaymentDate = now + periodDuration;
+            }
+
+            await ctx.db.patch(args.subscriptionId, updateData);
+
+            // Send subscription.activated webhook
+            const customer = await ctx.db.get(subscription.customerId);
+            if (customer) {
+              await ctx.scheduler.runAfter(
+                0,
+                internal.webhookDelivery.queueWebhook,
+                {
+                  appId: args.appId,
+                  event: "subscription.activated",
+                  payload: {
+                    subscription: {
+                      ...subscription,
+                      ...updateData,
+                    },
+                    customer,
+                    first_payment: subscription.status === "pending_payment",
+                  },
+                }
+              );
+            }
+          } else if (subscription.status === "active") {
+            // Renewal payment - extend the billing period
+            const plan = await ctx.db.get(subscription.planId);
+            if (plan && plan.interval !== "one-time") {
+              let periodDuration: number;
+              switch (plan.interval) {
+                case "monthly":
+                  periodDuration = 30 * 24 * 60 * 60 * 1000;
+                  break;
+                case "quarterly":
+                  periodDuration = 90 * 24 * 60 * 60 * 1000;
+                  break;
+                case "yearly":
+                  periodDuration = 365 * 24 * 60 * 60 * 1000;
+                  break;
+                default:
+                  periodDuration = 30 * 24 * 60 * 60 * 1000;
+              }
+
+              await ctx.db.patch(args.subscriptionId, {
+                lastPaymentDate: now,
+                failedPaymentAttempts: 0,
+                currentPeriodStart: now,
+                currentPeriodEnd: now + periodDuration,
+                nextPaymentDate: now + periodDuration,
+              });
+
+              // Send subscription.renewed webhook
+              const customer = await ctx.db.get(subscription.customerId);
+              if (customer) {
+                await ctx.scheduler.runAfter(
+                  0,
+                  internal.webhookDelivery.queueWebhook,
+                  {
+                    appId: args.appId,
+                    event: "subscription.renewed",
+                    payload: {
+                      subscription: {
+                        ...subscription,
+                        currentPeriodStart: now,
+                        currentPeriodEnd: now + periodDuration,
+                        nextPaymentDate: now + periodDuration,
+                      },
+                      customer,
+                      payment_date: now,
+                    },
+                  }
+                );
+              }
+            } else {
+              // Just update payment date for one-time plans
+              await ctx.db.patch(args.subscriptionId, {
+                lastPaymentDate: now,
+                failedPaymentAttempts: 0,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    // Handle failed payment - increment failure count on subscription
+    // SECURITY: Only process failures if invoice is NOT already paid (immutability)
+    if (args.status === "failed" && args.subscriptionId) {
+      // Check if invoice is already paid - if so, ignore failure
+      if (args.invoiceId) {
+        const invoice = await ctx.db.get(args.invoiceId);
+        if (invoice && invoice.status === "paid") {
+          console.warn(
+            `[SECURITY] Ignoring failed payment for already-paid invoice ${args.invoiceId}. Transaction recorded but subscription not affected.`
+          );
+          return transactionId; // Exit early - don't increment failures
+        }
+      }
+
+      const subscription = await ctx.db.get(args.subscriptionId);
+      if (subscription) {
+        const failureCount = (subscription.failedPaymentAttempts || 0) + 1;
+        await ctx.db.patch(args.subscriptionId, {
+          failedPaymentAttempts: failureCount,
+        });
+
+        // If too many failures and subscription is active, mark as past_due
+        if (failureCount >= 3 && subscription.status === "active") {
+          await ctx.db.patch(args.subscriptionId, {
+            status: "past_due",
+          });
+
+          // Send subscription.past_due webhook
+          const customer = await ctx.db.get(subscription.customerId);
+          if (customer) {
+            await ctx.scheduler.runAfter(
+              0,
+              internal.webhookDelivery.queueWebhook,
+              {
+                appId: args.appId,
+                event: "subscription.past_due",
+                payload: {
+                  subscription: { ...subscription, status: "past_due" },
+                  customer,
+                  failed_attempts: failureCount,
+                  last_failure_reason: args.failureReason || "Payment failed",
+                },
+              }
+            );
+          }
+        }
+      }
+    }
+
+    return transactionId;
   },
 });

@@ -178,12 +178,27 @@ export const handlePawapayWebhook = internalAction({
       // SUBMITTED: deposit submitted to MMO, being processed → pending
       // COMPLETED: deposit successful (FINAL STATE) → success
       // FAILED: deposit failed (FINAL STATE) → failed
+      // PawaPay failureCodes: PAYER_LIMIT_REACHED, PAYER_NOT_FOUND, UNSPECIFIED_FAILURE, etc.
+      // Note: PawaPay nests failure info inside failureReason object
       let status: "success" | "failed" | "pending" = "pending";
       const pawaStatus = data.status?.toUpperCase();
+
+      // Extract failure details - PawaPay structure: { failureReason: { failureCode, failureMessage } }
+      const failureCode =
+        data.failureReason?.failureCode || data.failureCode || undefined;
+      const failureReason =
+        data.failureReason?.failureMessage ||
+        (typeof data.failureReason === "string"
+          ? data.failureReason
+          : undefined) ||
+        failureCode ||
+        undefined;
 
       console.log("[PawaPay] Status mapping:", {
         rawStatus: data.status,
         upperCaseStatus: pawaStatus,
+        failureCode,
+        failureReason,
         depositId,
       });
 
@@ -221,9 +236,11 @@ export const handlePawapayWebhook = internalAction({
             status,
             providerTransactionId: depositId,
             providerResponse: data,
+            failureReason: status === "failed" ? failureReason : undefined,
             metadata: {
               webhookEvent: event,
               pawaPayStatus: pawaStatus,
+              failureCode,
               correspondent: data.payer?.accountDetails?.provider,
             },
           }
@@ -245,6 +262,8 @@ export const handlePawapayWebhook = internalAction({
             amount: parseFloat(data.amount || "0"),
             currency: data.currency || "UGX",
             providerResponse: data,
+            failureCode: status === "failed" ? failureCode : undefined,
+            failureReason: status === "failed" ? failureReason : undefined,
             metadata: {
               pawaPayStatus: pawaStatus,
               correspondent: data.payer?.accountDetails?.provider,
@@ -290,6 +309,8 @@ export const handlePawapayWebhook = internalAction({
               currency: data.currency,
               status,
               pawaPayStatus: pawaStatus,
+              failureCode: status === "failed" ? failureCode : undefined,
+              failureReason: status === "failed" ? failureReason : undefined,
               correspondent: data.payer?.accountDetails?.provider,
               payer: data.payer,
               timestamp: data.created || new Date().toISOString(),
