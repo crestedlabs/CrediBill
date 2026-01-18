@@ -61,7 +61,7 @@ async function authenticateApiKey(
 
 // Usage tracking endpoint for external apps
 http.route({
-  path: "/api/usage",
+  path: "/api/v1/usage",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -134,7 +134,7 @@ http.route({
 
 // Create customer endpoint
 http.route({
-  path: "/api/customers",
+  path: "/api/v1/customers/create",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -193,7 +193,7 @@ http.route({
 
 // Get customer endpoint
 http.route({
-  path: "/api/customers",
+  path: "/api/v1/customers",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -247,7 +247,7 @@ http.route({
 
 // Subscriptions API endpoints
 http.route({
-  path: "/api/subscriptions",
+  path: "/api/v1/subscriptions/create",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -293,7 +293,7 @@ http.route({
 });
 
 http.route({
-  path: "/api/subscriptions",
+  path: "/api/v1/subscriptions",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -354,7 +354,7 @@ http.route({
 });
 
 http.route({
-  path: "/api/subscriptions",
+  path: "/api/v1/subscriptions/cancel",
   method: "DELETE",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -399,7 +399,7 @@ http.route({
 
 // Plans API endpoints
 http.route({
-  path: "/api/plans",
+  path: "/api/v1/plans/create",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -430,7 +430,7 @@ http.route({
 });
 
 http.route({
-  path: "/api/plans",
+  path: "/api/v1/plans",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -458,7 +458,7 @@ http.route({
 });
 
 http.route({
-  path: "/api/plans",
+  path: "/api/v1/plans",
   method: "PATCH",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -501,7 +501,7 @@ http.route({
 });
 
 http.route({
-  path: "/api/plans",
+  path: "/api/v1/plans/delete",
   method: "DELETE",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -544,7 +544,7 @@ http.route({
 
 // Invoices API endpoints
 http.route({
-  path: "/api/invoices",
+  path: "/api/v1/invoices",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     try {
