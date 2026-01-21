@@ -10,7 +10,7 @@ const crons = cronJobs();
 crons.daily(
   "process-scheduled-cancellations",
   { hourUTC: 1, minuteUTC: 0 },
-  internal.cronHandlers.processScheduledCancellations
+  internal.cronHandlers.processScheduledCancellations,
 );
 
 /**
@@ -20,7 +20,7 @@ crons.daily(
 crons.daily(
   "process-trial-expirations",
   { hourUTC: 2, minuteUTC: 0 },
-  internal.cronHandlers.processTrialExpirations
+  internal.cronHandlers.processTrialExpirations,
 );
 
 /**
@@ -30,7 +30,7 @@ crons.daily(
 crons.daily(
   "process-recurring-payments",
   { hourUTC: 3, minuteUTC: 0 },
-  internal.cronHandlers.processRecurringPayments
+  internal.cronHandlers.processRecurringPayments,
 );
 
 /**
@@ -40,7 +40,7 @@ crons.daily(
 crons.daily(
   "retry-failed-payments",
   { hourUTC: 4, minuteUTC: 0 },
-  internal.cronHandlers.retryFailedPayments
+  internal.cronHandlers.retryFailedPayments,
 );
 
 /**
@@ -50,7 +50,7 @@ crons.daily(
 crons.daily(
   "cleanup-expired-transactions",
   { hourUTC: 5, minuteUTC: 0 },
-  internal.cronHandlers.cleanupExpiredTransactions
+  internal.cronHandlers.cleanupExpiredTransactions,
 );
 
 /**
@@ -60,7 +60,7 @@ crons.daily(
 crons.daily(
   "process-grace-period-expirations",
   { hourUTC: 6, minuteUTC: 0 },
-  internal.cronHandlers.processGracePeriodExpirations
+  internal.cronHandlers.processGracePeriodExpirations,
 );
 
 /**
@@ -70,17 +70,7 @@ crons.daily(
 crons.daily(
   "generate-pending-invoices",
   { hourUTC: 7, minuteUTC: 0 },
-  internal.cronHandlers.generatePendingInvoices
-);
-
-/**
- * Process webhook retries
- * Runs every 5 minutes to retry failed webhook deliveries
- */
-crons.interval(
-  "process-webhook-retries",
-  { minutes: 5 },
-  internal.cronHandlers.processWebhookRetries
+  internal.cronHandlers.generatePendingInvoices,
 );
 
 export default crons;

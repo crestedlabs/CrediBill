@@ -9,6 +9,7 @@ import { getCurrentUser } from "./users";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
+import { computeSubscriptionStatus } from "./subscriptionHelpers";
 
 // ============================================================================
 // Type definitions for API responses
@@ -65,8 +66,8 @@ export const createSubscriptionInternal = internalMutation({
       .filter((q) =>
         q.or(
           q.eq(q.field("status"), "active"),
-          q.eq(q.field("status"), "trialing")
-        )
+          q.eq(q.field("status"), "trialing"),
+        ),
       )
       .first();
 
@@ -77,7 +78,31 @@ export const createSubscriptionInternal = internalMutation({
     const now = Date.now();
     const startDate = args.startDate || now;
     const trialDays = plan.trialDays ?? 0;
-    const isTrialing = trialDays > 0;
+
+    // TRIAL PROTECTION: Check if customer has already used a trial
+    // Prevents trial abuse - customer gets trial only once, ever
+    let isTrialing = false;
+    if (trialDays > 0) {
+      if (customer.hasUsedTrial) {
+        // Customer already used trial before - no trial this time
+        console.log(
+          `[Trial Protection] Customer ${customer._id} already used trial on ${customer.firstTrialDate ? new Date(customer.firstTrialDate).toISOString() : "unknown date"} - skipping trial`,
+        );
+        isTrialing = false;
+      } else {
+        // First time using trial - grant it and mark customer
+        console.log(
+          `[Trial Protection] Granting first trial to customer ${customer._id}`,
+        );
+        isTrialing = true;
+
+        // Mark customer as having used trial (can only happen once)
+        await ctx.db.patch(args.customerId, {
+          hasUsedTrial: true,
+          firstTrialDate: now,
+        });
+      }
+    }
 
     let periodDuration: number;
     switch (plan.interval) {
@@ -119,21 +144,23 @@ export const createSubscriptionInternal = internalMutation({
       freeUnits: plan.freeUnits,
     };
 
+    // Billing period dates should ONLY exist when we have confirmed payment
+    // For trialing: dates remain undefined until first payment received after trial
+    // For pending_payment (no trial): dates remain undefined until first payment received
     const subscriptionId = await ctx.db.insert("subscriptions", {
       organizationId: app.organizationId,
       appId: args.appId,
       customerId: args.customerId,
       planId: args.planId,
       planSnapshot,
-      status: isTrialing ? "trialing" : "pending_payment", // Wait for payment if no trial
-      startDate,
-      currentPeriodStart: isTrialing ? trialEndDate : startDate,
-      currentPeriodEnd,
+      status: isTrialing ? "trialing" : "pending_payment",
+      startDate: undefined, // Only set when first payment received
+      currentPeriodStart: undefined, // Only set when first payment received
+      currentPeriodEnd: undefined, // Only set when first payment received
       cancelAtPeriodEnd: false,
       usageQuantity: 0,
       usageAmount: 0,
       trialEndsAt: isTrialing ? trialEndDate : undefined,
-      nextPaymentDate: isTrialing ? trialEndDate : startDate, // Payment due immediately if no trial
       lastPaymentDate: undefined,
       failedPaymentAttempts: 0,
     });
@@ -141,15 +168,17 @@ export const createSubscriptionInternal = internalMutation({
     const subscription = await ctx.db.get(subscriptionId);
 
     // Generate invoice immediately if subscription requires payment
+    // For no-trial subscriptions, create invoice now (dates are irrelevant for pending_payment)
     let invoiceId = undefined;
     if (!isTrialing) {
+      const now = Date.now();
       invoiceId = await ctx.runMutation(
         internal.invoices.generateInvoiceInternal,
         {
           subscriptionId,
-          periodStart: startDate,
-          periodEnd: currentPeriodEnd,
-        }
+          periodStart: now, // Use current time as placeholder
+          periodEnd: now, // Actual period starts when payment received
+        },
       );
     }
 
@@ -194,8 +223,7 @@ export const listSubscriptionsInternal = internalQuery({
         v.literal("trialing"),
         v.literal("past_due"),
         v.literal("cancelled"),
-        v.literal("expired")
-      )
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -233,7 +261,7 @@ export const listSubscriptionsInternal = internalQuery({
           customer,
           plan,
         };
-      })
+      }),
     );
 
     return subscriptionsWithDetails;
@@ -262,14 +290,14 @@ export const getSubscriptionInternal = internalQuery({
     const invoices = await ctx.db
       .query("invoices")
       .withIndex("by_subscription", (q) =>
-        q.eq("subscriptionId", subscription._id)
+        q.eq("subscriptionId", subscription._id),
       )
       .collect();
 
     const usageEvents = await ctx.db
       .query("usageEvents")
       .withIndex("by_subscription", (q) =>
-        q.eq("subscriptionId", subscription._id)
+        q.eq("subscriptionId", subscription._id),
       )
       .collect();
 
@@ -357,8 +385,7 @@ export const listSubscriptions = query({
         v.literal("trialing"),
         v.literal("paused"),
         v.literal("cancelled"),
-        v.literal("expired")
-      )
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -368,7 +395,7 @@ export const listSubscriptions = query({
     // At least one filter must be provided
     if (!args.appId && !args.customerId && !args.planId) {
       throw new ConvexError(
-        "Must provide at least one filter: appId, customerId, or planId"
+        "Must provide at least one filter: appId, customerId, or planId",
       );
     }
 
@@ -379,7 +406,7 @@ export const listSubscriptions = query({
       subscriptions = await ctx.db
         .query("subscriptions")
         .withIndex("by_customer_plan", (q) =>
-          q.eq("customerId", args.customerId!).eq("planId", args.planId!)
+          q.eq("customerId", args.customerId!).eq("planId", args.planId!),
         )
         .collect();
     } else if (args.customerId) {
@@ -408,7 +435,7 @@ export const listSubscriptions = query({
         .withIndex("by_org_user", (q) =>
           q
             .eq("organizationId", subscriptions[0].organizationId)
-            .eq("userId", user._id)
+            .eq("userId", user._id),
         )
         .unique();
 
@@ -420,17 +447,31 @@ export const listSubscriptions = query({
       subscriptions = subscriptions.filter((s) => s.status === args.status);
     }
 
-    // Enrich with customer and plan data
+    // Enrich with customer and plan data + compute real-time status
     const enrichedSubscriptions = await Promise.all(
       subscriptions.map(async (sub) => {
         const customer = await ctx.db.get(sub.customerId);
         const plan = await ctx.db.get(sub.planId);
+
+        // Get app settings for grace period (required - no fallback)
+        const appDoc = await ctx.db.get(sub.appId);
+        if (!appDoc || !("gracePeriod" in appDoc)) {
+          throw new Error(
+            `App ${sub.appId} not found or missing gracePeriod setting`,
+          );
+        }
+        const gracePeriodDays = (appDoc as any).gracePeriod;
+
+        // Compute real-time status
+        const computedStatus = computeSubscriptionStatus(sub, gracePeriodDays);
+
         return {
           ...sub,
           customer,
           plan,
+          computedStatus, // Add computed status alongside database status
         };
-      })
+      }),
     );
 
     return enrichedSubscriptions;
@@ -457,7 +498,7 @@ export const getSubscription = query({
       .withIndex("by_org_user", (q) =>
         q
           .eq("organizationId", subscription.organizationId)
-          .eq("userId", user._id)
+          .eq("userId", user._id),
       )
       .unique();
 
@@ -471,7 +512,7 @@ export const getSubscription = query({
     const usageEvents = await ctx.db
       .query("usageEvents")
       .withIndex("by_subscription", (q) =>
-        q.eq("subscriptionId", subscription._id)
+        q.eq("subscriptionId", subscription._id),
       )
       .collect();
 
@@ -479,7 +520,7 @@ export const getSubscription = query({
     const invoices = await ctx.db
       .query("invoices")
       .withIndex("by_subscription", (q) =>
-        q.eq("subscriptionId", subscription._id)
+        q.eq("subscriptionId", subscription._id),
       )
       .collect();
 
@@ -502,7 +543,7 @@ export const updateSubscriptionStatus = mutation({
     action: v.union(
       v.literal("pause"),
       v.literal("resume"),
-      v.literal("cancel_at_period_end")
+      v.literal("cancel_at_period_end"),
     ),
   },
   handler: async (ctx, args) => {
@@ -518,7 +559,7 @@ export const updateSubscriptionStatus = mutation({
       .withIndex("by_org_user", (q) =>
         q
           .eq("organizationId", subscription.organizationId)
-          .eq("userId", user._id)
+          .eq("userId", user._id),
       )
       .unique();
 
@@ -533,7 +574,7 @@ export const updateSubscriptionStatus = mutation({
           subscription.status !== "trialing"
         ) {
           throw new ConvexError(
-            "Can only pause active or trialing subscriptions"
+            "Can only pause active or trialing subscriptions",
           );
         }
         await ctx.db.patch(args.subscriptionId, { status: "paused" });
@@ -548,10 +589,7 @@ export const updateSubscriptionStatus = mutation({
 
       case "cancel_at_period_end":
         // Cancel at the end of current billing period
-        if (
-          subscription.status === "cancelled" ||
-          subscription.status === "expired"
-        ) {
+        if (subscription.status === "cancelled") {
           throw new ConvexError("Subscription is already ended");
         }
         await ctx.db.patch(args.subscriptionId, {

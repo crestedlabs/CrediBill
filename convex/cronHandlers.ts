@@ -15,18 +15,18 @@ import { internal, api } from "./_generated/api";
  */
 export const processTrialExpirations = internalAction({
   handler: async (
-    ctx
+    ctx,
   ): Promise<{ processed: number; succeeded: number; failed: number }> => {
     const now = Date.now();
 
     // Find all subscriptions with expired trials
     const subscriptions: any[] = await ctx.runQuery(
       internal.cronQueries.getExpiredTrials,
-      { now }
+      { now },
     );
 
     console.log(
-      `[Cron] Found ${subscriptions.length} expired trials to process`
+      `[Cron] Found ${subscriptions.length} expired trials to process`,
     );
 
     let successCount = 0;
@@ -55,25 +55,25 @@ export const processTrialExpirations = internalAction({
             subscription_id: subscription._id,
             customer_id: subscription.customerId,
             trial_ended_at: subscription.trialEndsAt,
-            next_payment_due: subscription.nextPaymentDate,
+            payment_due_at: subscription.currentPeriodEnd,
           },
         });
 
         successCount++;
         console.log(
-          `[Cron] Successfully processed trial for subscription ${subscription._id}`
+          `[Cron] Successfully processed trial for subscription ${subscription._id}`,
         );
       } catch (error: any) {
         failureCount++;
         console.error(
           `[Cron] Error processing trial for subscription ${subscription._id}:`,
-          error
+          error,
         );
       }
     }
 
     console.log(
-      `[Cron] Trial expiration processing complete: ${successCount} succeeded, ${failureCount} failed`
+      `[Cron] Trial expiration processing complete: ${successCount} succeeded, ${failureCount} failed`,
     );
 
     return {
@@ -91,18 +91,18 @@ export const processTrialExpirations = internalAction({
  */
 export const processRecurringPayments = internalAction({
   handler: async (
-    ctx
+    ctx,
   ): Promise<{ processed: number; succeeded: number; failed: number }> => {
     const now = Date.now();
 
     // Find all subscriptions due for payment
     const subscriptions: any[] = await ctx.runQuery(
       internal.cronQueries.getDueSubscriptions,
-      { now }
+      { now },
     );
 
     console.log(
-      `[Cron] Found ${subscriptions.length} subscriptions due for payment`
+      `[Cron] Found ${subscriptions.length} subscriptions due for payment`,
     );
 
     let successCount = 0;
@@ -120,7 +120,7 @@ export const processRecurringPayments = internalAction({
             customer_id: subscription.customerId,
             amount_due: subscription.planSnapshot?.baseAmount || 0,
             currency: subscription.planSnapshot?.currency || "USD",
-            due_date: subscription.nextPaymentDate,
+            due_date: subscription.currentPeriodEnd,
             billing_period: {
               start: subscription.currentPeriodStart,
               end: subscription.currentPeriodEnd,
@@ -130,19 +130,19 @@ export const processRecurringPayments = internalAction({
 
         successCount++;
         console.log(
-          `[Cron] Successfully notified client about payment due for subscription ${subscription._id}`
+          `[Cron] Successfully notified client about payment due for subscription ${subscription._id}`,
         );
       } catch (error: any) {
         failureCount++;
         console.error(
           `[Cron] Error processing payment due notification for subscription ${subscription._id}:`,
-          error
+          error,
         );
       }
     }
 
     console.log(
-      `[Cron] Payment due notification processing complete: ${successCount} succeeded, ${failureCount} failed`
+      `[Cron] Payment due notification processing complete: ${successCount} succeeded, ${failureCount} failed`,
     );
 
     return {
@@ -159,7 +159,7 @@ export const processRecurringPayments = internalAction({
  */
 export const retryFailedPayments = internalAction({
   handler: async (
-    ctx
+    ctx,
   ): Promise<{
     processed: number;
     succeeded: number;
@@ -171,11 +171,11 @@ export const retryFailedPayments = internalAction({
     // Find failed transactions eligible for retry
     const transactions: any[] = await ctx.runQuery(
       internal.cronQueries.getRetryableTransactions,
-      { now }
+      { now },
     );
 
     console.log(
-      `[Cron] Found ${transactions.length} failed transactions eligible for retry`
+      `[Cron] Found ${transactions.length} failed transactions eligible for retry`,
     );
 
     let successCount = 0;
@@ -189,7 +189,7 @@ export const retryFailedPayments = internalAction({
         if (transaction.attemptNumber >= 3) {
           skippedCount++;
           console.log(
-            `[Cron] Skipping transaction ${transaction._id}: max retries exceeded`
+            `[Cron] Skipping transaction ${transaction._id}: max retries exceeded`,
           );
           continue;
         }
@@ -198,19 +198,19 @@ export const retryFailedPayments = internalAction({
         // Clients handle payment retries in their own systems
         skippedCount++;
         console.log(
-          `[Cron] Skipped transaction ${transaction._id}: payment retries handled by client`
+          `[Cron] Skipped transaction ${transaction._id}: payment retries handled by client`,
         );
       } catch (error: any) {
         failureCount++;
         console.error(
           `[Cron] Error retrying transaction ${transaction._id}:`,
-          error
+          error,
         );
       }
     }
 
     console.log(
-      `[Cron] Retry processing complete: ${successCount} succeeded, ${failureCount} failed, ${skippedCount} skipped`
+      `[Cron] Retry processing complete: ${successCount} succeeded, ${failureCount} failed, ${skippedCount} skipped`,
     );
 
     return {
@@ -233,11 +233,11 @@ export const cleanupExpiredTransactions = internalAction({
     // Find expired pending transactions
     const transactions: any[] = await ctx.runQuery(
       internal.cronQueries.getExpiredTransactions,
-      { now }
+      { now },
     );
 
     console.log(
-      `[Cron] Found ${transactions.length} expired pending transactions to cleanup`
+      `[Cron] Found ${transactions.length} expired pending transactions to cleanup`,
     );
 
     let cleanedCount = 0;
@@ -252,13 +252,13 @@ export const cleanupExpiredTransactions = internalAction({
       } catch (error: any) {
         console.error(
           `[Cron] Error marking transaction ${transaction._id} as expired:`,
-          error
+          error,
         );
       }
     }
 
     console.log(
-      `[Cron] Cleanup complete: ${cleanedCount} transactions marked as expired`
+      `[Cron] Cleanup complete: ${cleanedCount} transactions marked as expired`,
     );
 
     return {
@@ -270,12 +270,24 @@ export const cleanupExpiredTransactions = internalAction({
 
 /**
  * Process webhook retries
+ * @deprecated This function is no longer used - Svix handles all webhook retries automatically
+ *
+ * The manual webhook retry system has been replaced by Svix which provides
+ * automatic retries with exponential backoff. This function is kept for backward
+ * compatibility but the cron job that calls it has been disabled in crons.ts.
+ *
  * Finds failed webhooks that need to be retried and attempts redelivery
  */
 export const processWebhookRetries = internalAction({
   handler: async (
-    ctx
+    ctx,
   ): Promise<{ processed: number; succeeded: number; failed: number }> => {
+    console.log(
+      "[Cron] Webhook retries are disabled - Svix handles retries automatically",
+    );
+    return { processed: 0, succeeded: 0, failed: 0 };
+
+    /* Legacy implementation - commented out
     const now = Date.now();
 
     // Find all webhooks pending retry
@@ -332,6 +344,7 @@ export const processWebhookRetries = internalAction({
       succeeded,
       failed,
     };
+    */
   },
 });
 
@@ -341,18 +354,18 @@ export const processWebhookRetries = internalAction({
  */
 export const processGracePeriodExpirations = internalAction({
   handler: async (
-    ctx
+    ctx,
   ): Promise<{ processed: number; succeeded: number; failed: number }> => {
     const now = Date.now();
 
     // Find subscriptions past their grace period
     const subscriptions: any[] = await ctx.runQuery(
       internal.cronQueries.getGracePeriodExpiredSubscriptions,
-      { now }
+      { now },
     );
 
     console.log(
-      `[Cron] Found ${subscriptions.length} subscriptions past grace period`
+      `[Cron] Found ${subscriptions.length} subscriptions past grace period`,
     );
 
     let successCount = 0;
@@ -380,19 +393,19 @@ export const processGracePeriodExpirations = internalAction({
 
         successCount++;
         console.log(
-          `[Cron] Successfully marked subscription ${subscription._id} as past_due`
+          `[Cron] Successfully marked subscription ${subscription._id} as past_due`,
         );
       } catch (error: any) {
         failureCount++;
         console.error(
           `[Cron] Error processing grace period expiration for subscription ${subscription._id}:`,
-          error
+          error,
         );
       }
     }
 
     console.log(
-      `[Cron] Grace period expiration processing complete: ${successCount} succeeded, ${failureCount} failed`
+      `[Cron] Grace period expiration processing complete: ${successCount} succeeded, ${failureCount} failed`,
     );
 
     return {
@@ -409,18 +422,18 @@ export const processGracePeriodExpirations = internalAction({
  */
 export const processScheduledCancellations = internalAction({
   handler: async (
-    ctx
+    ctx,
   ): Promise<{ processed: number; succeeded: number; failed: number }> => {
     const now = Date.now();
 
     // Find subscriptions scheduled for cancellation
     const subscriptions: any[] = await ctx.runQuery(
       internal.cronQueries.getScheduledCancellations,
-      { now }
+      { now },
     );
 
     console.log(
-      `[Cron] Found ${subscriptions.length} subscriptions scheduled for cancellation`
+      `[Cron] Found ${subscriptions.length} subscriptions scheduled for cancellation`,
     );
 
     let successCount = 0;
@@ -434,7 +447,7 @@ export const processScheduledCancellations = internalAction({
           internal.cronMutations.cancelSubscriptionAtPeriodEnd,
           {
             subscriptionId: subscription._id,
-          }
+          },
         );
 
         // Send cancellation webhook (customer info already in subscription object)
@@ -451,19 +464,19 @@ export const processScheduledCancellations = internalAction({
 
         successCount++;
         console.log(
-          `[Cron] Successfully cancelled subscription ${subscription._id} at period end`
+          `[Cron] Successfully cancelled subscription ${subscription._id} at period end`,
         );
       } catch (error: any) {
         failureCount++;
         console.error(
           `[Cron] Error cancelling subscription ${subscription._id}:`,
-          error
+          error,
         );
       }
     }
 
     console.log(
-      `[Cron] Scheduled cancellation processing complete: ${successCount} succeeded, ${failureCount} failed`
+      `[Cron] Scheduled cancellation processing complete: ${successCount} succeeded, ${failureCount} failed`,
     );
 
     return {
@@ -480,18 +493,18 @@ export const processScheduledCancellations = internalAction({
  */
 export const generatePendingInvoices = internalAction({
   handler: async (
-    ctx
+    ctx,
   ): Promise<{ processed: number; succeeded: number; failed: number }> => {
     const now = Date.now();
 
     // Find subscriptions needing invoices
     const subscriptions: any[] = await ctx.runQuery(
       internal.cronQueries.getSubscriptionsNeedingInvoices,
-      { now }
+      { now },
     );
 
     console.log(
-      `[Cron] Found ${subscriptions.length} subscriptions needing invoices`
+      `[Cron] Found ${subscriptions.length} subscriptions needing invoices`,
     );
 
     let successCount = 0;
@@ -521,19 +534,19 @@ export const generatePendingInvoices = internalAction({
 
         successCount++;
         console.log(
-          `[Cron] Successfully generated invoice for subscription ${subscription._id}`
+          `[Cron] Successfully generated invoice for subscription ${subscription._id}`,
         );
       } catch (error: any) {
         failureCount++;
         console.error(
           `[Cron] Error generating invoice for subscription ${subscription._id}:`,
-          error
+          error,
         );
       }
     }
 
     console.log(
-      `[Cron] Invoice generation complete: ${successCount} succeeded, ${failureCount} failed`
+      `[Cron] Invoice generation complete: ${successCount} succeeded, ${failureCount} failed`,
     );
 
     return {

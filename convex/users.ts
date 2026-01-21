@@ -1,8 +1,20 @@
-import { internalMutation, query, QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  query,
+  QueryCtx,
+} from "./_generated/server";
 import { UserJSON } from "@clerk/backend";
 import { v, Validator } from "convex/values";
 
 export const current = query({
+  args: {},
+  handler: async (ctx) => {
+    return await getCurrentUser(ctx);
+  },
+});
+
+export const getCurrentUserInternal = internalQuery({
   args: {},
   handler: async (ctx) => {
     return await getCurrentUser(ctx);
@@ -52,7 +64,7 @@ export const deleteFromClerk = internalMutation({
 
     if (user === null) {
       console.warn(
-        `Can't delete user, there is none for Clerk user ID: ${clerkUserId}`
+        `Can't delete user, there is none for Clerk user ID: ${clerkUserId}`,
       );
       return;
     }
@@ -144,7 +156,7 @@ export const deleteFromClerk = internalMutation({
             const usageEvents = await ctx.db
               .query("usageEvents")
               .withIndex("by_subscription", (q) =>
-                q.eq("subscriptionId", subscription._id)
+                q.eq("subscriptionId", subscription._id),
               )
               .collect();
             for (const event of usageEvents) {
@@ -155,7 +167,7 @@ export const deleteFromClerk = internalMutation({
             const usageSummaries = await ctx.db
               .query("usageSummaries")
               .withIndex("by_subscription_period", (q) =>
-                q.eq("subscriptionId", subscription._id)
+                q.eq("subscriptionId", subscription._id),
               )
               .collect();
             for (const summary of usageSummaries) {
@@ -166,7 +178,7 @@ export const deleteFromClerk = internalMutation({
             const invoices = await ctx.db
               .query("invoices")
               .withIndex("by_subscription", (q) =>
-                q.eq("subscriptionId", subscription._id)
+                q.eq("subscriptionId", subscription._id),
               )
               .collect();
 

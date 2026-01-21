@@ -3,6 +3,7 @@
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 import * as crypto from "crypto";
 
 // ============================================================================
@@ -26,7 +27,7 @@ function verifyHmacSignature(
   payload: string,
   receivedSignature: string,
   secret: string,
-  algorithm: string = "sha256"
+  algorithm: string = "sha256",
 ): boolean {
   const computedSignature = crypto
     .createHmac(algorithm, secret)
@@ -67,11 +68,11 @@ function decryptString(encryptedData: string): string {
 /**
  * Handle PawaPay webhook (forwarded from Cloudflare Worker)
  * Authentication is handled at HTTP layer via X-Webhook-Secret
+ * NOTE: appId is now extracted from the webhook body as credibill_app_id
  */
 export const handlePawapayWebhook = internalAction({
   args: {
     payload: v.string(),
-    appId: v.id("apps"),
   },
   handler: async (ctx, args) => {
     try {
@@ -80,7 +81,7 @@ export const handlePawapayWebhook = internalAction({
 
       console.log(
         "[PawaPay] Raw webhook data:",
-        JSON.stringify(webhookData).substring(0, 500)
+        JSON.stringify(webhookData).substring(0, 500),
       );
 
       // Provider-agnostic: Handle nested structure (PawaPay wraps in "data")
@@ -91,13 +92,40 @@ export const handlePawapayWebhook = internalAction({
       // Extract transaction ID (provider-agnostic field names)
       const depositId = data.depositId || data.deposit_id || data.transactionId;
 
-      // Extract metadata - PawaPay uses flat object structure
-      const metadata = data.metadata || {};
-      const customerId = metadata.credibill_customer_id;
-      const subscriptionId = metadata.credibill_subscription_id;
-      const invoiceId = metadata.credibill_invoice_id;
+      // Extract metadata - PawaPay sends metadata as array of objects
+      // Example: [{"credibill_customer_id": "..."}, {"credibill_subscription_id": "..."}]
+      const metadataArray = data.metadata || [];
+
+      // Helper function to extract value from metadata array
+      const getMetadataValue = (key: string) => {
+        if (Array.isArray(metadataArray)) {
+          const item = metadataArray.find((obj: any) => obj && obj[key]);
+          return item ? item[key] : undefined;
+        }
+        // Fallback for flat object structure (backwards compatibility)
+        return metadataArray[key];
+      };
+
+      const customerId = getMetadataValue("credibill_customer_id");
+      const subscriptionId = getMetadataValue("credibill_subscription_id");
+      const invoiceId = getMetadataValue("credibill_invoice_id");
+      const appId = getMetadataValue("credibill_app_id");
+
+      if (!appId) {
+        console.error("[PawaPay] Missing credibill_app_id in metadata", {
+          depositId,
+          metadata: metadataArray,
+        });
+        return {
+          success: false,
+          error:
+            "Missing credibill_app_id in metadata. Include it in your deposit request.",
+          logged: true,
+        };
+      }
 
       console.log("[PawaPay] Extracted metadata:", {
+        appId,
         customerId,
         subscriptionId,
         invoiceId,
@@ -105,7 +133,9 @@ export const handlePawapayWebhook = internalAction({
       });
 
       // Get app details to find organization context
-      const app = await ctx.runQuery(internal.apps.get, { id: args.appId });
+      const app = await ctx.runQuery(internal.apps.get, {
+        id: appId as Id<"apps">,
+      });
       if (!app) {
         console.error("App not found for webhook");
         // Still return success so PawaPay accepts webhook
@@ -131,8 +161,8 @@ export const handlePawapayWebhook = internalAction({
           internal.webhookQueries.findTransactionByReferenceAndApp,
           {
             reference: depositId,
-            appId: args.appId,
-          }
+            appId: appId as Id<"apps">,
+          },
         );
         if (existingTransaction) {
           console.log(`Duplicate PawaPay webhook for depositId: ${depositId}`);
@@ -148,7 +178,7 @@ export const handlePawapayWebhook = internalAction({
                 providerTransactionId: depositId,
                 providerResponse: webhookData,
                 metadata: { webhookEvent: event, pawaPayStatus: currentStatus },
-              }
+              },
             );
           }
           return { success: true, duplicate: false, updated: true };
@@ -163,7 +193,7 @@ export const handlePawapayWebhook = internalAction({
         console.error("Potential replay attack detected");
         await ctx.runMutation(internal.webhookMutations.logWebhook, {
           organizationId: app.organizationId,
-          appId: args.appId,
+          appId: appId as Id<"apps">,
           provider: "pawapay",
           event,
           payload: webhookData,
@@ -222,8 +252,8 @@ export const handlePawapayWebhook = internalAction({
           internal.webhookQueries.findTransactionByReferenceAndApp,
           {
             reference: depositId,
-            appId: args.appId,
-          }
+            appId: appId as Id<"apps">,
+          },
         );
       }
 
@@ -243,7 +273,7 @@ export const handlePawapayWebhook = internalAction({
               failureCode,
               correspondent: data.payer?.accountDetails?.provider,
             },
-          }
+          },
         );
       } else if (depositId) {
         // Create new transaction record - app owner initiated payment, we're just tracking it
@@ -252,7 +282,7 @@ export const handlePawapayWebhook = internalAction({
           internal.webhookMutations.createTransactionFromWebhook,
           {
             organizationId: app.organizationId,
-            appId: args.appId,
+            appId: appId as Id<"apps">,
             customerId: customerId as any, // From metadata
             subscriptionId: subscriptionId as any, // From metadata
             invoiceId: invoiceId as any, // From metadata (optional)
@@ -270,12 +300,12 @@ export const handlePawapayWebhook = internalAction({
               payer: data.payer,
               providerTransactionId: data.providerTransactionId,
             },
-          }
+          },
         );
         // Fetch the created transaction to get full object
         const createdTransaction = await ctx.runQuery(
           internal.webhookQueries.findTransactionByReferenceAndApp,
-          { reference: depositId, appId: args.appId }
+          { reference: depositId, appId: appId as Id<"apps"> },
         );
         transaction = createdTransaction;
       }
@@ -283,7 +313,7 @@ export const handlePawapayWebhook = internalAction({
       // Log webhook
       await ctx.runMutation(internal.webhookMutations.logWebhook, {
         organizationId: app.organizationId,
-        appId: args.appId,
+        appId: appId as Id<"apps">,
         provider: "pawapay",
         event: `pawapay.${pawaStatus?.toLowerCase() || "unknown"}`,
         payload: webhookData,
@@ -299,7 +329,7 @@ export const handlePawapayWebhook = internalAction({
         const webhookEvent =
           status === "success" ? "payment.completed" : "payment.failed";
         await ctx.scheduler.runAfter(0, internal.webhookDelivery.queueWebhook, {
-          appId: args.appId,
+          appId: appId as Id<"apps">,
           event: webhookEvent,
           payload: {
             payment: {

@@ -28,7 +28,7 @@ export const createCustomerInternal = internalMutation({
     metadata: v.optional(v.any()),
     type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
     status: v.optional(
-      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked")),
     ),
   },
   handler: async (ctx, args) => {
@@ -46,13 +46,13 @@ export const createCustomerInternal = internalMutation({
     const existingCustomer = await ctx.db
       .query("customers")
       .withIndex("by_app_email", (q) =>
-        q.eq("appId", args.appId).eq("email", args.email)
+        q.eq("appId", args.appId).eq("email", args.email),
       )
       .unique();
 
     if (existingCustomer) {
       throw new ConvexError(
-        "Customer with this email already exists in this app"
+        "Customer with this email already exists in this app",
       );
     }
 
@@ -95,7 +95,7 @@ export const listCustomersInternal = internalQuery({
     appId: v.id("apps"),
     search: v.optional(v.string()),
     status: v.optional(
-      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked")),
     ),
   },
   handler: async (ctx, args) => {
@@ -107,7 +107,7 @@ export const listCustomersInternal = internalQuery({
       customers = await ctx.db
         .query("customers")
         .withSearchIndex("search_customers", (q) =>
-          q.search("email", args.search!).eq("appId", args.appId)
+          q.search("email", args.search!).eq("appId", args.appId),
         )
         .collect();
 
@@ -122,13 +122,13 @@ export const listCustomersInternal = internalQuery({
         (c) =>
           c.first_name?.toLowerCase().includes(searchLower) ||
           c.last_name?.toLowerCase().includes(searchLower) ||
-          c.phone?.includes(args.search!)
+          c.phone?.includes(args.search!),
       );
 
       // Combine and deduplicate results
       const customerMap = new Map();
       [...customers, ...namePhoneMatches].forEach((c) =>
-        customerMap.set(c._id, c)
+        customerMap.set(c._id, c),
       );
       customers = Array.from(customerMap.values());
     } else {
@@ -153,7 +153,7 @@ export const listCustomersInternal = internalQuery({
           .collect();
 
         const activeSubscriptions = subscriptions.filter(
-          (s) => s.status === "active" || s.status === "trialing"
+          (s) => s.status === "active" || s.status === "trialing",
         );
 
         return {
@@ -161,7 +161,7 @@ export const listCustomersInternal = internalQuery({
           subscriptionCount: subscriptions.length,
           activeSubscriptionCount: activeSubscriptions.length,
         };
-      })
+      }),
     );
 
     return customersWithStats;
@@ -201,7 +201,7 @@ export const getCustomerInternal = internalQuery({
           ...sub,
           plan,
         };
-      })
+      }),
     );
 
     // Get customer's invoices
@@ -237,7 +237,7 @@ export const createCustomer = mutation({
     metadata: v.optional(v.any()),
     type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
     status: v.optional(
-      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked")),
     ),
   },
   handler: async (ctx, args) => {
@@ -252,7 +252,7 @@ export const createCustomer = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -268,13 +268,13 @@ export const createCustomer = mutation({
     const existingCustomer = await ctx.db
       .query("customers")
       .withIndex("by_app_email", (q) =>
-        q.eq("appId", args.appId).eq("email", args.email)
+        q.eq("appId", args.appId).eq("email", args.email),
       )
       .unique();
 
     if (existingCustomer) {
       throw new ConvexError(
-        "Customer with this email already exists in this app"
+        "Customer with this email already exists in this app",
       );
     }
 
@@ -317,7 +317,7 @@ export const listCustomers = query({
     appId: v.id("apps"),
     search: v.optional(v.string()),
     status: v.optional(
-      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked")),
     ),
   },
   handler: async (ctx, args) => {
@@ -332,7 +332,7 @@ export const listCustomers = query({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -346,7 +346,7 @@ export const listCustomers = query({
       customers = await ctx.db
         .query("customers")
         .withSearchIndex("search_customers", (q) =>
-          q.search("email", args.search!).eq("appId", args.appId)
+          q.search("email", args.search!).eq("appId", args.appId),
         )
         .collect();
 
@@ -361,13 +361,13 @@ export const listCustomers = query({
         (c) =>
           c.first_name?.toLowerCase().includes(searchLower) ||
           c.last_name?.toLowerCase().includes(searchLower) ||
-          c.phone?.includes(args.search!)
+          c.phone?.includes(args.search!),
       );
 
       // Combine and deduplicate results
       const customerMap = new Map();
       [...customers, ...namePhoneMatches].forEach((c) =>
-        customerMap.set(c._id, c)
+        customerMap.set(c._id, c),
       );
       customers = Array.from(customerMap.values());
     } else {
@@ -392,7 +392,7 @@ export const listCustomers = query({
           .collect();
 
         const activeSubscriptions = subscriptions.filter(
-          (s) => s.status === "active" || s.status === "trialing"
+          (s) => s.status === "active" || s.status === "trialing",
         );
 
         return {
@@ -400,7 +400,7 @@ export const listCustomers = query({
           subscriptionCount: subscriptions.length,
           activeSubscriptionCount: activeSubscriptions.length,
         };
-      })
+      }),
     );
 
     return customersWithStats;
@@ -426,7 +426,7 @@ export const getCustomer = query({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", customer.organizationId).eq("userId", user._id)
+        q.eq("organizationId", customer.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -446,7 +446,7 @@ export const getCustomer = query({
           ...sub,
           plan,
         };
-      })
+      }),
     );
 
     // Get customer's invoices
@@ -477,7 +477,7 @@ export const updateCustomer = mutation({
     metadata: v.optional(v.any()),
     type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
     status: v.optional(
-      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked")),
     ),
   },
   handler: async (ctx, args) => {
@@ -492,7 +492,7 @@ export const updateCustomer = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", customer.organizationId).eq("userId", user._id)
+        q.eq("organizationId", customer.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -508,13 +508,13 @@ export const updateCustomer = mutation({
       const existingCustomer = await ctx.db
         .query("customers")
         .withIndex("by_app_email", (q) =>
-          q.eq("appId", customer.appId).eq("email", args.email!)
+          q.eq("appId", customer.appId).eq("email", args.email!),
         )
         .unique();
 
       if (existingCustomer) {
         throw new ConvexError(
-          "Customer with this email already exists in this app"
+          "Customer with this email already exists in this app",
         );
       }
     }
@@ -574,7 +574,7 @@ export const deleteCustomer = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", customer.organizationId).eq("userId", user._id)
+        q.eq("organizationId", customer.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -587,18 +587,18 @@ export const deleteCustomer = mutation({
       .collect();
 
     const activeSubscriptions = subscriptions.filter(
-      (s) => s.status === "active" || s.status === "trialing"
+      (s) => s.status === "active" || s.status === "trialing",
     );
 
     if (activeSubscriptions.length > 0 && !args.force) {
       throw new ConvexError(
-        `Cannot delete customer with ${activeSubscriptions.length} active subscription(s). Cancel subscriptions first or use force delete.`
+        `Cannot delete customer with ${activeSubscriptions.length} active subscription(s). Cancel subscriptions first or use force delete.`,
       );
     }
 
-    // Auto-delete cancelled/expired subscriptions (they're no longer needed)
+    // Auto-delete cancelled subscriptions (they're no longer needed)
     const inactiveSubscriptions = subscriptions.filter(
-      (s) => s.status === "cancelled" || s.status === "expired"
+      (s) => s.status === "cancelled",
     );
 
     for (const subscription of inactiveSubscriptions) {
@@ -612,7 +612,7 @@ export const deleteCustomer = mutation({
         const usageEvents = await ctx.db
           .query("usageEvents")
           .withIndex("by_subscription", (q) =>
-            q.eq("subscriptionId", subscription._id)
+            q.eq("subscriptionId", subscription._id),
           )
           .collect();
 
@@ -624,7 +624,7 @@ export const deleteCustomer = mutation({
         const usageSummaries = await ctx.db
           .query("usageSummaries")
           .withIndex("by_subscription_period", (q) =>
-            q.eq("subscriptionId", subscription._id)
+            q.eq("subscriptionId", subscription._id),
           )
           .collect();
 

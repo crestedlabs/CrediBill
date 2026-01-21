@@ -27,8 +27,8 @@ export const listInvoicesInternal = internalQuery({
         v.literal("pending"),
         v.literal("paid"),
         v.literal("void"),
-        v.literal("failed")
-      )
+        v.literal("failed"),
+      ),
     ),
   },
   handler: async (ctx, args) => {
@@ -38,7 +38,7 @@ export const listInvoicesInternal = internalQuery({
       invoices = await ctx.db
         .query("invoices")
         .withIndex("by_subscription", (q) =>
-          q.eq("subscriptionId", args.subscriptionId!)
+          q.eq("subscriptionId", args.subscriptionId!),
         )
         .filter((q) => q.eq(q.field("appId"), args.appId))
         .collect();
@@ -70,7 +70,7 @@ export const listInvoicesInternal = internalQuery({
           customer,
           subscription,
         };
-      })
+      }),
     );
 
     return invoicesWithDetails;
@@ -118,7 +118,7 @@ export const updateInvoiceStatusInternal = internalMutation({
       v.literal("pending"),
       v.literal("paid"),
       v.literal("void"),
-      v.literal("failed")
+      v.literal("failed"),
     ),
     amountPaid: v.optional(v.number()),
     paidDate: v.optional(v.number()),
@@ -161,7 +161,7 @@ export const updateInvoiceStatusInternal = internalMutation({
 async function generateInvoiceNumber(
   ctx: any,
   organizationId: string,
-  appId: string
+  appId: string,
 ) {
   const year = new Date().getFullYear();
 
@@ -202,8 +202,8 @@ export const listInvoices = query({
         v.literal("open"),
         v.literal("paid"),
         v.literal("failed"),
-        v.literal("void")
-      )
+        v.literal("void"),
+      ),
     ),
     customerId: v.optional(v.id("customers")),
   },
@@ -219,7 +219,7 @@ export const listInvoices = query({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .first();
 
@@ -265,7 +265,7 @@ export const listInvoices = query({
               }
             : null,
         };
-      })
+      }),
     );
 
     // Sort by creation date (newest first)
@@ -289,7 +289,7 @@ export const getInvoiceById = query({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", invoice.organizationId).eq("userId", user._id)
+        q.eq("organizationId", invoice.organizationId).eq("userId", user._id),
       )
       .first();
 
@@ -365,8 +365,11 @@ export const generateInvoiceInternal = internalMutation({
       return null;
     }
 
-    // Calculate due date using app's grace period (default: app.gracePeriod or 7 days)
-    const gracePeriodDays = app.gracePeriod || 7;
+    // Calculate due date using app's grace period (required - no fallback)
+    const gracePeriodDays = app.gracePeriod;
+    if (gracePeriodDays === undefined) {
+      throw new Error(`App ${app._id} missing required gracePeriod setting`);
+    }
     const dueDate = args.periodEnd + gracePeriodDays * 24 * 60 * 60 * 1000;
 
     // Build line items based on pricing model
@@ -389,7 +392,7 @@ export const generateInvoiceInternal = internalMutation({
       const usageEvents = await ctx.db
         .query("usageEvents")
         .withIndex("by_subscription_timestamp", (q) =>
-          q.eq("subscriptionId", subscription._id)
+          q.eq("subscriptionId", subscription._id),
         )
         .filter((q) => q.eq(q.field("metric"), usageMetric))
         .filter((q) => q.gte(q.field("timestamp"), args.periodStart))
@@ -398,7 +401,7 @@ export const generateInvoiceInternal = internalMutation({
 
       const usageQuantity = usageEvents.reduce(
         (sum, event) => sum + event.quantity,
-        0
+        0,
       );
       const unitPrice = plan.unitPrice || 0;
       const freeUnits = plan.freeUnits || 0;
@@ -430,7 +433,7 @@ export const generateInvoiceInternal = internalMutation({
       const usageEvents = await ctx.db
         .query("usageEvents")
         .withIndex("by_subscription_timestamp", (q) =>
-          q.eq("subscriptionId", subscription._id)
+          q.eq("subscriptionId", subscription._id),
         )
         .filter((q) => q.eq(q.field("metric"), usageMetric))
         .filter((q) => q.gte(q.field("timestamp"), args.periodStart))
@@ -439,7 +442,7 @@ export const generateInvoiceInternal = internalMutation({
 
       const usageQuantity = usageEvents.reduce(
         (sum, event) => sum + event.quantity,
-        0
+        0,
       );
       const unitPrice = plan.unitPrice || 0;
       const freeUnits = plan.freeUnits || 0;
@@ -462,7 +465,7 @@ export const generateInvoiceInternal = internalMutation({
     const invoiceNumber = await generateInvoiceNumber(
       ctx,
       subscription.organizationId,
-      subscription.appId
+      subscription.appId,
     );
 
     // Create invoice

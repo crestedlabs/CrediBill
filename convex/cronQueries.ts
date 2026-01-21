@@ -18,9 +18,9 @@ export const getExpiredTrials = internalQuery({
       .query("subscriptions")
       .filter((q) =>
         q.and(
-          q.eq(q.field("status"), "trial"),
-          q.lt(q.field("trialEndsAt"), args.now)
-        )
+          q.eq(q.field("status"), "trialing"),
+          q.lt(q.field("trialEndsAt"), args.now),
+        ),
       )
       .collect();
 
@@ -34,14 +34,14 @@ export const getExpiredTrials = internalQuery({
 export const getDueSubscriptions = internalQuery({
   args: { now: v.number() },
   handler: async (ctx, args) => {
-    // Find active subscriptions whose next payment date has arrived
+    // Find active subscriptions whose current period has ended (payment due)
     const subscriptions = await ctx.db
       .query("subscriptions")
       .filter((q) =>
         q.and(
           q.eq(q.field("status"), "active"),
-          q.lte(q.field("nextPaymentDate"), args.now)
-        )
+          q.lte(q.field("currentPeriodEnd"), args.now),
+        ),
       )
       .collect();
 
@@ -64,8 +64,8 @@ export const getRetryableTransactions = internalQuery({
       .filter((q) =>
         q.and(
           q.gte(q.field("initiatedAt"), sevenDaysAgo),
-          q.lt(q.field("attemptNumber"), 3) // Max 3 attempts
-        )
+          q.lt(q.field("attemptNumber"), 3), // Max 3 attempts
+        ),
       )
       .collect();
 
@@ -86,10 +86,10 @@ export const getExpiredTransactions = internalQuery({
         q.and(
           q.or(
             q.eq(q.field("status"), "pending"),
-            q.eq(q.field("status"), "initiated")
+            q.eq(q.field("status"), "initiated"),
           ),
-          q.lt(q.field("expiresAt"), args.now)
-        )
+          q.lt(q.field("expiresAt"), args.now),
+        ),
       )
       .collect();
 
@@ -111,18 +111,32 @@ export const getGracePeriodExpiredSubscriptions = internalQuery({
       .filter((q) =>
         q.or(
           q.eq(q.field("status"), "active"),
-          q.eq(q.field("status"), "pending_payment")
-        )
+          q.eq(q.field("status"), "pending_payment"),
+        ),
       )
       .collect();
 
     // Filter subscriptions where grace period has expired
     const expiredSubscriptions = [];
     for (const sub of subscriptions) {
-      const app = await ctx.db.get(sub.appId);
-      if (!app) continue;
+      // Skip subscriptions without currentPeriodEnd (awaiting first payment)
+      if (!sub.currentPeriodEnd) {
+        continue; // No period end = no grace period to check
+      }
 
-      const gracePeriodMs = (app.gracePeriod || 7) * 24 * 60 * 60 * 1000;
+      const app = await ctx.db.get(sub.appId);
+      if (!app) {
+        console.error(
+          `[Cron] App ${sub.appId} not found for subscription ${sub._id}`,
+        );
+        continue;
+      }
+      if (app.gracePeriod === undefined) {
+        console.error(`[Cron] App ${app._id} missing gracePeriod setting`);
+        continue;
+      }
+
+      const gracePeriodMs = app.gracePeriod * 24 * 60 * 60 * 1000;
       const graceDeadline = sub.currentPeriodEnd + gracePeriodMs;
 
       if (args.now > graceDeadline) {
@@ -147,23 +161,27 @@ export const getSubscriptionsNeedingInvoices = internalQuery({
       .filter((q) =>
         q.or(
           q.eq(q.field("status"), "active"),
-          q.eq(q.field("status"), "trialing")
-        )
+          q.eq(q.field("status"), "trialing"),
+        ),
       )
-      .filter((q) => q.lte(q.field("currentPeriodEnd"), args.now))
       .collect();
+
+    // Filter for subscriptions with currentPeriodEnd and past their period end
+    const pastPeriodEnd = subscriptions.filter(
+      (sub) => sub.currentPeriodEnd && sub.currentPeriodEnd <= args.now,
+    );
 
     // Check if invoice already exists for this period
     const subscriptionsNeedingInvoices = [];
-    for (const sub of subscriptions) {
+    for (const sub of pastPeriodEnd) {
       const existingInvoice = await ctx.db
         .query("invoices")
         .withIndex("by_subscription", (q) => q.eq("subscriptionId", sub._id))
         .filter((q) =>
           q.and(
             q.eq(q.field("periodStart"), sub.currentPeriodStart),
-            q.eq(q.field("periodEnd"), sub.currentPeriodEnd)
-          )
+            q.eq(q.field("periodEnd"), sub.currentPeriodEnd),
+          ),
         )
         .first();
 
@@ -193,13 +211,15 @@ export const getScheduledCancellations = internalQuery({
             q.eq(q.field("status"), "active"),
             q.eq(q.field("status"), "trialing"),
             q.eq(q.field("status"), "pending_payment"),
-            q.eq(q.field("status"), "paused")
-          )
-        )
+            q.eq(q.field("status"), "paused"),
+          ),
+        ),
       )
       .collect();
 
-    // Filter by those past their period end
-    return subscriptions.filter((sub) => args.now >= sub.currentPeriodEnd);
+    // Filter by those past their period end (skip if no currentPeriodEnd)
+    return subscriptions.filter(
+      (sub) => sub.currentPeriodEnd && args.now >= sub.currentPeriodEnd,
+    );
   },
 });

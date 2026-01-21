@@ -38,36 +38,59 @@ export default function SettingsBilling() {
 
   const appSettings = useQuery(
     api.apps.getAppSettings,
-    selectedApp?._id ? { appId: selectedApp._id } : "skip"
+    selectedApp?._id ? { appId: selectedApp._id } : "skip",
+  );
+
+  // Get provider details to check billing mode
+  const selectedProvider = useQuery(
+    api.providerCatalog.getProviderById,
+    appSettings?.paymentProviderId
+      ? { providerId: appSettings.paymentProviderId }
+      : "skip",
   );
 
   const updateSettings = useMutation(api.apps.updateAppSettings);
 
   // Form state
   const [paymentMethod, setPaymentMethod] = useState<string>("");
-  const [retryPolicy, setRetryPolicy] = useState<string>("");
   const [gracePeriod, setGracePeriod] = useState<number>(3);
 
   // Initialize form with current values
   useEffect(() => {
     if (appSettings) {
       setPaymentMethod(appSettings.defaultPaymentMethod);
-      setRetryPolicy(appSettings.retryPolicy);
       setGracePeriod(appSettings.gracePeriod);
     }
   }, [appSettings]);
 
-  // Check if form has changes
+  // Check if provider is PawaPay
+  const isPawaPay = selectedProvider?.name?.toLowerCase() === "pawapay";
+
+  // Force momo for PawaPay
+  useEffect(() => {
+    if (isPawaPay && paymentMethod !== "momo") {
+      setPaymentMethod("momo");
+    }
+  }, [isPawaPay, paymentMethod]);
+
+  // Check if form has changes (no changes allowed for PawaPay)
   const hasChanges =
+    !isPawaPay &&
     appSettings &&
     (paymentMethod !== appSettings.defaultPaymentMethod ||
-      retryPolicy !== appSettings.retryPolicy ||
       gracePeriod !== appSettings.gracePeriod);
 
   const handleSave = async () => {
     if (!selectedApp?._id || !hasChanges) return;
 
-    // Validate numbers
+    // PawaPay apps cannot modify billing settings
+    if (isPawaPay) {
+      toast.error("Billing settings cannot be modified for PawaPay", {
+        description: "PawaPay uses fixed payment configuration",
+      });
+      return;
+    }
+
     // Validate grace period
     if (gracePeriod < 0 || gracePeriod > 30) {
       toast.error("Invalid grace period", {
@@ -81,7 +104,6 @@ export default function SettingsBilling() {
       await updateSettings({
         appId: selectedApp._id,
         defaultPaymentMethod: paymentMethod as any,
-        retryPolicy: retryPolicy as any,
         gracePeriod: gracePeriod,
       });
 
@@ -131,69 +153,38 @@ export default function SettingsBilling() {
         </CardHeader>
         <CardContent className="pt-0">
           <PermissionAwareField
-            canEdit={canManageSettings}
-            message={getPermissionMessage(["owner", "admin"])}
+            canEdit={canManageSettings && !isPawaPay}
+            message={
+              isPawaPay
+                ? "Payment method is fixed to Mobile Money for PawaPay"
+                : getPermissionMessage(["owner", "admin"])
+            }
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Default Payment Method
-                </label>
-                <Select
-                  value={paymentMethod}
-                  onValueChange={setPaymentMethod}
-                  disabled={!canManageSettings}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="momo">📱 Mobile Money</SelectItem>
-                      <SelectItem value="credit-card">
-                        💳 Credit Card
-                      </SelectItem>
-                      <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  Payment Retry Policy
-                </label>
-                <Select
-                  value={retryPolicy}
-                  onValueChange={setRetryPolicy}
-                  disabled={!canManageSettings}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="automatic">
-                        <div className="flex items-center gap-2">
-                          <RefreshCw className="h-3 w-3 text-green-500" />
-                          Automatic Retries
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="manual">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-3 w-3 text-amber-500" />
-                          Manual Review
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="none">
-                        <div className="flex items-center gap-2">
-                          <span className="h-3 w-3 rounded-full bg-red-500" />
-                          No Retries
-                        </div>
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="max-w-xs space-y-2">
+              <label className="text-sm font-medium text-slate-700">
+                Default Payment Method
+              </label>
+              <Select
+                value={paymentMethod}
+                onValueChange={setPaymentMethod}
+                disabled={!canManageSettings || isPawaPay}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="momo">📱 Mobile Money</SelectItem>
+                    <SelectItem value="credit-card">💳 Credit Card</SelectItem>
+                    <SelectItem value="bank">🏦 Bank Transfer</SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {isPawaPay && (
+                <p className="text-xs text-slate-500">
+                  PawaPay only supports mobile money payments
+                </p>
+              )}
             </div>
           </PermissionAwareField>
         </CardContent>
@@ -218,8 +209,12 @@ export default function SettingsBilling() {
         </CardHeader>
         <CardContent className="pt-0">
           <PermissionAwareField
-            canEdit={canManageSettings}
-            message={getPermissionMessage(["owner", "admin"])}
+            canEdit={canManageSettings && !isPawaPay}
+            message={
+              isPawaPay
+                ? "Grace period is not applicable for PawaPay"
+                : getPermissionMessage(["owner", "admin"])
+            }
           >
             <div className="max-w-xs space-y-2">
               <label className="text-sm font-medium text-slate-700">
@@ -236,15 +231,16 @@ export default function SettingsBilling() {
                   min={0}
                   max={30}
                   className="h-10 pr-12"
-                  disabled={!canManageSettings}
+                  disabled={!canManageSettings || isPawaPay}
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
                   days
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Days to wait before suspending service after failed payment
-                (0-30 days)
+                {isPawaPay
+                  ? "Grace period does not apply to PawaPay where payment is initiated by client applications"
+                  : "Days to wait before suspending service after failed payment (0-30 days)"}
               </p>
             </div>
           </PermissionAwareField>
@@ -256,7 +252,7 @@ export default function SettingsBilling() {
         <Button
           className="h-10 px-6"
           onClick={handleSave}
-          disabled={!hasChanges || isSaving || !canManageSettings}
+          disabled={isPawaPay || !hasChanges || isSaving || !canManageSettings}
         >
           {isSaving ? (
             <>

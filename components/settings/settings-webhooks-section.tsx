@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -9,14 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
   Send,
@@ -27,6 +19,8 @@ import {
   Webhook,
   Copy,
   Check,
+  ExternalLink,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -39,21 +33,24 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
     api.providerCatalog.getProviderById,
     appSettings?.paymentProviderId
       ? { providerId: appSettings.paymentProviderId }
-      : "skip"
+      : "skip",
   );
-  const updateWebhook = useMutation(api.apps.updateWebhookConfig);
-  const testWebhook = useMutation(api.apps.testWebhook);
-  const webhookDeliveries = useQuery(
-    api.webhookDelivery.listWebhookDeliveries,
-    {
-      appId,
-      limit: 20,
-    }
+  // Use new Svix endpoints
+  const webhookConfig = useQuery(api.webhookEndpoints.getWebhookConfig, {
+    appId,
+  });
+  const configureWebhook = useMutation(
+    api.webhookEndpoints.configureWebhookEndpoint,
+  );
+  const testWebhook = useAction(api.svixEvents.testWebhook);
+  const generateDashboard = useAction(
+    api.svixDashboard.generateWebhookDashboard,
   );
 
   const [webhookUrl, setWebhookUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -61,12 +58,12 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
   const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
   const [copiedWebhook, setCopiedWebhook] = useState(false);
 
-  // Initialize form when data loads
+  // Initialize form when webhook config loads
   useEffect(() => {
-    if (appSettings) {
-      setWebhookUrl(appSettings.webhookUrl || "");
+    if (webhookConfig?.configured && webhookConfig.webhook) {
+      setWebhookUrl(webhookConfig.webhook.url || "");
     }
-  }, [appSettings]);
+  }, [webhookConfig]);
 
   const handleSave = async () => {
     if (!webhookUrl.trim()) {
@@ -77,22 +74,31 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
       return;
     }
 
+    if (!webhookUrl.startsWith("https://")) {
+      setMessage({
+        type: "error",
+        text: "Webhook URL must use HTTPS for security",
+      });
+      return;
+    }
+
     setIsSaving(true);
     setMessage(null);
     try {
-      const result = await updateWebhook({
+      const result = await configureWebhook({
         appId,
-        webhookUrl: webhookUrl.trim(),
+        url: webhookUrl.trim(),
+        description: "Webhook endpoint for " + appSettings?.name,
       });
 
       // Store the generated secret from the response
-      if (result.webhookSecret) {
-        setGeneratedSecret(result.webhookSecret);
+      if (result.secret) {
+        setGeneratedSecret(result.secret);
       }
 
       setMessage({
         type: "success",
-        text: "Webhook configuration saved successfully",
+        text: result.message || "Webhook configuration saved successfully",
       });
     } catch (error: any) {
       setMessage({
@@ -125,7 +131,7 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
       await testWebhook({ appId });
       setMessage({
         type: "success",
-        text: "Test webhook sent successfully. Check the delivery log below.",
+        text: "Test webhook sent successfully. Check the delivery log below or view in the dashboard.",
       });
     } catch (error: any) {
       setMessage({
@@ -137,31 +143,21 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "success":
-        return (
-          <Badge variant="default" className="bg-green-500">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Success
-          </Badge>
-        );
-      case "failed":
-        return (
-          <Badge variant="destructive">
-            <XCircle className="h-3 w-3 mr-1" />
-            Failed
-          </Badge>
-        );
-      case "pending":
-        return (
-          <Badge variant="secondary">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        );
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const handleViewDashboard = async () => {
+    setIsLoadingDashboard(true);
+    try {
+      const result = await generateDashboard({ appId });
+      if (result.success && result.url) {
+        // Open dashboard in new window
+        window.open(result.url, "_blank", "noopener,noreferrer");
+      }
+    } catch (error: any) {
+      setMessage({
+        type: "error",
+        text: error.message || "Failed to generate dashboard access",
+      });
+    } finally {
+      setIsLoadingDashboard(false);
     }
   };
 
@@ -183,6 +179,26 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Svix Info Banner */}
+          <div className="p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <BarChart3 className="h-5 w-5 text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-purple-900 mb-1">
+                  Powered by Svix
+                </h4>
+                <p className="text-sm text-purple-800 leading-relaxed">
+                  Your webhooks are managed by Svix, providing automatic retries
+                  with exponential backoff, signature verification, delivery
+                  tracking, and a full-featured debugging dashboard. No more
+                  manual retry logic!
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="webhook-url">Webhook URL</Label>
             <Input
@@ -193,20 +209,22 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
               onChange={(e) => setWebhookUrl(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              We'll send POST requests to this URL when events occur.
+              We'll send POST requests to this URL when events occur. Must use
+              HTTPS.
             </p>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="webhook-secret">Webhook Secret</Label>
             <div className="space-y-2">
-              {appSettings?.webhookSecret || generatedSecret ? (
+              {webhookConfig?.webhook?.secret || generatedSecret ? (
                 <div className="p-3 bg-slate-50 rounded border">
                   <code className="text-sm font-mono break-all">
-                    {generatedSecret || appSettings?.webhookSecret}
+                    {generatedSecret || webhookConfig?.webhook?.secret}
                   </code>
                   <p className="text-xs text-muted-foreground mt-2">
-                    ✅ Use this secret to verify webhook signatures in your app.
+                    ✅ Use this secret to verify Svix webhook signatures in your
+                    app.
                   </p>
                 </div>
               ) : (
@@ -219,8 +237,8 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              CrediBill generates this secret automatically and uses it to sign
-              webhook payloads with HMAC-SHA256.
+              Svix generates this secret automatically and uses it to sign
+              webhook payloads. Use the Svix SDK to verify signatures.
             </p>
           </div>
 
@@ -232,7 +250,7 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
             </Alert>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button onClick={handleSave} disabled={isSaving}>
               {isSaving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Save Configuration
@@ -249,7 +267,50 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
               )}
               Send Test
             </Button>
+            {webhookConfig?.configured &&
+              webhookConfig.webhook?.hasSvixEndpoint && (
+                <Button
+                  variant="outline"
+                  onClick={handleViewDashboard}
+                  disabled={isLoadingDashboard}
+                  className="bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200 hover:from-purple-100 hover:to-blue-100"
+                >
+                  {isLoadingDashboard ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <>
+                      <BarChart3 className="h-4 w-4 mr-2" />
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                    </>
+                  )}
+                  View Dashboard
+                </Button>
+              )}
           </div>
+
+          {webhookConfig?.configured &&
+            webhookConfig.webhook?.hasSvixEndpoint && (
+              <div className="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
+                <p className="text-sm text-blue-900 font-medium flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Webhook Dashboard Available
+                </p>
+                <p className="text-xs text-blue-700 mt-1">
+                  Access a full-featured dashboard to debug webhooks, view
+                  delivery logs, retry failed events, and test your endpoint
+                  configuration. Dashboard sessions are valid for 1 hour.
+                </p>
+              </div>
+            )}
+
+          {message && (
+            <Alert
+              className="mt-4"
+              variant={message.type === "error" ? "destructive" : "default"}
+            >
+              <AlertDescription>{message.text}</AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
@@ -290,14 +351,14 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
                   </h4>
                   <div className="flex gap-2">
                     <code className="text-sm bg-white p-3 rounded block break-all border border-slate-200 font-mono flex-1">
-                      {`https://api.credibill.tech/v1/webhooks/${selectedProvider.name}?appId=${appId}`}
+                      {`https://api.credibill.tech/v1/webhooks/${selectedProvider.name}`}
                     </code>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() =>
                         copyWebhookUrl(
-                          `https://api.credibill.tech/v1/webhooks/${selectedProvider.name}?appId=${appId}`
+                          `https://api.credibill.tech/v1/webhooks/${selectedProvider.name}`,
                         )
                       }
                     >
@@ -383,6 +444,15 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
                         save.
                       </li>
                       <li>
+                        <strong>Important:</strong> When making deposit
+                        requests, include{" "}
+                        <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">
+                          {`{ "credibill_app_id": "${appId}" }`}
+                        </code>{" "}
+                        in the metadata array so CrediBill can route the webhook
+                        correctly.
+                      </li>
+                      <li>
                         Ensure callbacks include:{" "}
                         <code className="text-xs bg-slate-100 px-1 py-0.5 rounded">
                           depositId
@@ -459,7 +529,7 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
                     </ol>
                   )}
                   {!["flutterwave", "pawapay", "pesapal", "dpo"].includes(
-                    selectedProvider.name
+                    selectedProvider.name,
                   ) && (
                     <ol className="list-decimal list-inside space-y-1 text-slate-600 ml-2">
                       <li>
@@ -706,76 +776,46 @@ export function SettingsWebhooksSection({ appId }: { appId: Id<"apps"> }) {
         </CardContent>
       </Card>
 
-      {/* Delivery History */}
+      {/* Webhook Monitoring */}
       <Card className="border-0 shadow-sm bg-white">
-        <CardHeader>
-          <h3 className="text-base font-semibold">Recent Deliveries</h3>
-          <p className="text-sm text-muted-foreground">
-            Last 20 webhook delivery attempts
-          </p>
-        </CardHeader>
-        <CardContent>
-          {!webhookDeliveries ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : webhookDeliveries.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No webhook deliveries yet
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Attempts</TableHead>
-                    <TableHead>Response</TableHead>
-                    <TableHead>Last Attempt</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {webhookDeliveries.map((delivery) => (
-                    <TableRow key={delivery._id}>
-                      <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">
-                          {delivery.event}
-                        </code>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(delivery.status)}</TableCell>
-                      <TableCell>{delivery.attempts}</TableCell>
-                      <TableCell>
-                        {delivery.responseStatus ? (
-                          <span
-                            className={
-                              delivery.responseStatus >= 200 &&
-                              delivery.responseStatus < 300
-                                ? "text-green-600"
-                                : "text-red-600"
-                            }
-                          >
-                            {delivery.responseStatus}
-                          </span>
-                        ) : delivery.error ? (
-                          <span className="text-red-600 text-xs">
-                            {delivery.error.substring(0, 50)}
-                          </span>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {delivery.lastAttemptAt
-                          ? new Date(delivery.lastAttemptAt).toLocaleString()
-                          : "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center justify-center py-8 text-center">
+            <BarChart3 className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">
+              Monitor Your Webhooks
+            </h3>
+            <p className="text-sm text-muted-foreground mb-6 max-w-md">
+              View webhook delivery history, retry attempts, response codes, and
+              debug failed deliveries in the Svix Dashboard
+            </p>
+            <Button
+              onClick={handleViewDashboard}
+              disabled={
+                isLoadingDashboard ||
+                !webhookConfig?.configured ||
+                !webhookConfig.webhook?.hasSvixEndpoint
+              }
+              size="lg"
+            >
+              {isLoadingDashboard ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Opening Dashboard...
+                </>
+              ) : !webhookConfig?.configured ||
+                !webhookConfig.webhook?.hasSvixEndpoint ? (
+                <>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Configure Webhook First
+                </>
+              ) : (
+                <>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open Svix Dashboard
+                </>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

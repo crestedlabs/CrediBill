@@ -8,21 +8,9 @@ interface SubscriptionFiltersProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   onSearchSubmit: () => void;
-  statusFilter:
-    | "active"
-    | "trialing"
-    | "paused"
-    | "cancelled"
-    | "expired"
-    | undefined;
+  statusFilter: "active" | "trialing" | "paused" | "cancelled" | undefined;
   onStatusFilterChange: (
-    status:
-      | "active"
-      | "trialing"
-      | "paused"
-      | "cancelled"
-      | "expired"
-      | undefined
+    status: "active" | "trialing" | "paused" | "cancelled" | undefined,
   ) => void;
 }
 
@@ -63,36 +51,29 @@ export function SubscriptionFilters({
 
       {/* Status Filters */}
       <div className="flex flex-wrap gap-2">
-        {(
-          [
-            "All",
-            "active",
-            "trialing",
-            "paused",
-            "cancelled",
-            "expired",
-          ] as const
-        ).map((filter) => {
-          const isSelected =
-            filter === "All" ? !statusFilter : statusFilter === filter;
+        {(["All", "active", "trialing", "paused", "cancelled"] as const).map(
+          (filter) => {
+            const isSelected =
+              filter === "All" ? !statusFilter : statusFilter === filter;
 
-          return (
-            <button
-              key={filter}
-              type="button"
-              onClick={() =>
-                onStatusFilterChange(filter === "All" ? undefined : filter)
-              }
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
-                isSelected
-                  ? "bg-teal-600 text-white hover:bg-teal-700"
-                  : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
-              }`}
-            >
-              {filter.charAt(0).toUpperCase() + filter.slice(1)}
-            </button>
-          );
-        })}
+            return (
+              <button
+                key={filter}
+                type="button"
+                onClick={() =>
+                  onStatusFilterChange(filter === "All" ? undefined : filter)
+                }
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
+                  isSelected
+                    ? "bg-teal-600 text-white hover:bg-teal-700"
+                    : "bg-white text-slate-700 hover:bg-slate-50 border border-slate-200"
+                }`}
+              >
+                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              </button>
+            );
+          },
+        )}
       </div>
     </div>
   );

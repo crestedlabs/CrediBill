@@ -38,7 +38,7 @@ export function ViewCustomerDialog({
 }: ViewCustomerDialogProps) {
   const customer = useQuery(
     api.customers.getCustomer,
-    open ? { customerId } : "skip"
+    open ? { customerId } : "skip",
   );
 
   const formatDate = (timestamp: number) => {
@@ -226,7 +226,6 @@ export function ViewCustomerDialog({
                         pending_payment: "bg-amber-100 text-amber-800",
                         paused: "bg-slate-100 text-slate-800",
                         cancelled: "bg-red-100 text-red-800",
-                        expired: "bg-slate-100 text-slate-800",
                         past_due: "bg-orange-100 text-orange-800",
                       };
                       return (
@@ -248,7 +247,9 @@ export function ViewCustomerDialog({
                           <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
                             <div>
                               <span className="font-medium">Started:</span>{" "}
-                              {new Date(sub.startDate).toLocaleDateString()}
+                              {sub.startDate
+                                ? new Date(sub.startDate).toLocaleDateString()
+                                : "—"}
                             </div>
                             {sub.plan && (
                               <div>
@@ -277,7 +278,7 @@ export function ViewCustomerDialog({
                         {
                           customer.subscriptions.filter(
                             (s) =>
-                              s.status === "active" || s.status === "trialing"
+                              s.status === "active" || s.status === "trialing",
                           ).length
                         }
                       </div>

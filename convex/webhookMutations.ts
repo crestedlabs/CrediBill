@@ -16,7 +16,7 @@ export const logWebhook = internalMutation({
       v.literal("dpo"),
       v.literal("paystack"),
       v.literal("stripe"),
-      v.literal("clerk")
+      v.literal("clerk"),
     ),
     event: v.string(),
     payload: v.any(),
@@ -25,7 +25,7 @@ export const logWebhook = internalMutation({
       v.literal("processing"),
       v.literal("processed"),
       v.literal("failed"),
-      v.literal("ignored")
+      v.literal("ignored"),
     ),
     paymentTransactionId: v.optional(v.id("paymentTransactions")),
     subscriptionId: v.optional(v.id("subscriptions")),
@@ -75,7 +75,7 @@ export const updateTransactionFromWebhook = internalMutation({
       v.literal("success"),
       v.literal("failed"),
       v.literal("canceled"),
-      v.literal("refunded")
+      v.literal("refunded"),
     ),
     providerTransactionId: v.optional(v.string()),
     providerResponse: v.optional(v.any()),
@@ -92,7 +92,7 @@ export const updateTransactionFromWebhook = internalMutation({
     const terminalStates = ["success", "canceled", "refunded"];
     if (terminalStates.includes(transaction.status)) {
       console.warn(
-        `Transaction ${args.transactionId} is already in terminal state ${transaction.status}, ignoring update to ${args.status}`
+        `Transaction ${args.transactionId} is already in terminal state ${transaction.status}, ignoring update to ${args.status}`,
       );
       return;
     }
@@ -163,15 +163,13 @@ export const updateTransactionFromWebhook = internalMutation({
               failedPaymentAttempts: 0, // Reset failure count
             };
 
-            // If this is the first payment (pending_payment -> active), set the billing period
-            // Period starts from payment date - service begins when payment is received
-            if (
-              subscription.status === "pending_payment" &&
-              plan?.interval !== "one-time"
-            ) {
-              updateData.currentPeriodStart = now;
-              updateData.currentPeriodEnd = now + periodDuration;
-              updateData.nextPaymentDate = now + periodDuration;
+            // CRITICAL: Billing period STARTS when first payment is received
+            // For BOTH trialing -> active AND pending_payment -> active:
+            // Set billing period dates from payment timestamp (when we actually receive money)
+            if (plan?.interval !== "one-time") {
+              updateData.startDate = now; // Subscription starts when payment received
+              updateData.currentPeriodStart = now; // Current billing period starts now
+              updateData.currentPeriodEnd = now + periodDuration; // Period ends and payment due
             }
 
             await ctx.db.patch(transaction.subscriptionId, updateData);
@@ -193,7 +191,7 @@ export const updateTransactionFromWebhook = internalMutation({
                     customer,
                     first_payment: subscription.status === "pending_payment",
                   },
-                }
+                },
               );
             }
           } else if (subscription.status === "active") {
@@ -221,7 +219,6 @@ export const updateTransactionFromWebhook = internalMutation({
                 failedPaymentAttempts: 0,
                 currentPeriodStart: now,
                 currentPeriodEnd: now + periodDuration,
-                nextPaymentDate: now + periodDuration,
               });
 
               // Send subscription.renewed webhook
@@ -243,7 +240,7 @@ export const updateTransactionFromWebhook = internalMutation({
                       customer,
                       payment_date: now,
                     },
-                  }
+                  },
                 );
               }
             } else {
@@ -266,7 +263,7 @@ export const updateTransactionFromWebhook = internalMutation({
         const invoice = await ctx.db.get(transaction.invoiceId);
         if (invoice && invoice.status === "paid") {
           console.warn(
-            `[SECURITY] Ignoring failed payment update for already-paid invoice ${transaction.invoiceId}. Transaction updated but subscription not affected.`
+            `[SECURITY] Ignoring failed payment update for already-paid invoice ${transaction.invoiceId}. Transaction updated but subscription not affected.`,
           );
           return; // Exit early - don't increment failures
         }
@@ -287,7 +284,7 @@ export const updateTransactionFromWebhook = internalMutation({
 
           // Send subscription.past_due webhook
           const updatedSubscription = await ctx.db.get(
-            transaction.subscriptionId
+            transaction.subscriptionId,
           );
           const customer = await ctx.db.get(subscription.customerId);
           if (updatedSubscription && customer) {
@@ -303,7 +300,7 @@ export const updateTransactionFromWebhook = internalMutation({
                   failed_attempts: failureCount,
                   last_failure_reason: args.failureReason || "Payment failed",
                 },
-              }
+              },
             );
           }
         }
@@ -327,7 +324,7 @@ export const createTransactionFromWebhook = internalMutation({
       v.literal("success"),
       v.literal("failed"),
       v.literal("canceled"),
-      v.literal("refunded")
+      v.literal("refunded"),
     ),
     amount: v.number(),
     currency: v.string(),
@@ -351,7 +348,7 @@ export const createTransactionFromWebhook = internalMutation({
       const invoice = await ctx.db.get(args.invoiceId);
       if (invoice && invoice.status === "paid") {
         console.warn(
-          `Invoice ${args.invoiceId} already paid. Recording transaction but skipping activation.`
+          `Invoice ${args.invoiceId} already paid. Recording transaction but skipping activation.`,
         );
         // Still record the transaction but don't activate subscription
         const transactionId = await ctx.db.insert("paymentTransactions", {
@@ -461,16 +458,17 @@ export const createTransactionFromWebhook = internalMutation({
               failedPaymentAttempts: 0,
             };
 
-            // For first payment (trialing or pending_payment), set the billing period
-            // Billing period always starts from payment date, not trial end date
+            // For first payment (trialing or pending_payment), activate subscription and set billing period
+            // This converts trialing/pending_payment → active with billing dates
             if (
               (subscription.status === "pending_payment" ||
                 subscription.status === "trialing") &&
               plan?.interval !== "one-time"
             ) {
-              updateData.currentPeriodStart = now;
-              updateData.currentPeriodEnd = now + periodDuration;
-              updateData.nextPaymentDate = now + periodDuration;
+              updateData.status = "active"; // Activate subscription on first payment
+              updateData.startDate = now; // Customer since date (first payment)
+              updateData.currentPeriodStart = now; // Billing period starts now
+              updateData.currentPeriodEnd = now + periodDuration; // Period ends and payment due
             }
 
             await ctx.db.patch(args.subscriptionId, updateData);
@@ -492,7 +490,7 @@ export const createTransactionFromWebhook = internalMutation({
                     customer,
                     first_payment: subscription.status === "pending_payment",
                   },
-                }
+                },
               );
             }
           } else if (subscription.status === "active") {
@@ -519,7 +517,6 @@ export const createTransactionFromWebhook = internalMutation({
                 failedPaymentAttempts: 0,
                 currentPeriodStart: now,
                 currentPeriodEnd: now + periodDuration,
-                nextPaymentDate: now + periodDuration,
               });
 
               // Send subscription.renewed webhook
@@ -541,7 +538,7 @@ export const createTransactionFromWebhook = internalMutation({
                       customer,
                       payment_date: now,
                     },
-                  }
+                  },
                 );
               }
             } else {
@@ -564,7 +561,7 @@ export const createTransactionFromWebhook = internalMutation({
         const invoice = await ctx.db.get(args.invoiceId);
         if (invoice && invoice.status === "paid") {
           console.warn(
-            `[SECURITY] Ignoring failed payment for already-paid invoice ${args.invoiceId}. Transaction recorded but subscription not affected.`
+            `[SECURITY] Ignoring failed payment for already-paid invoice ${args.invoiceId}. Transaction recorded but subscription not affected.`,
           );
           return transactionId; // Exit early - don't increment failures
         }
@@ -598,7 +595,7 @@ export const createTransactionFromWebhook = internalMutation({
                   failed_attempts: failureCount,
                   last_failure_reason: args.failureReason || "Payment failed",
                 },
-              }
+              },
             );
           }
         }
