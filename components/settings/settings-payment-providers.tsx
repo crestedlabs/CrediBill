@@ -37,7 +37,7 @@ export default function SettingsPaymentProviders() {
   const { canManageSettings } = useAppPermissions();
   const [isSaving, setIsSaving] = useState(false);
   const saveCredentialsMutation = useMutation(
-    api.paymentProviderCredentials.saveCredentials
+    api.paymentProviderCredentials.saveCredentials,
   );
 
   // Form state
@@ -48,13 +48,13 @@ export default function SettingsPaymentProviders() {
   // Get app settings including payment provider ID
   const appSettings = useQuery(
     api.apps.getAppSettings,
-    selectedApp?._id ? { appId: selectedApp._id } : "skip"
+    selectedApp?._id ? { appId: selectedApp._id } : "skip",
   );
 
   // Get existing credentials
   const existingCredentials = useQuery(
     api.paymentProviderCredentials.getCredentials,
-    selectedApp?._id ? { appId: selectedApp._id } : "skip"
+    selectedApp?._id ? { appId: selectedApp._id } : "skip",
   );
 
   // Fetch the specific provider details from catalog
@@ -62,7 +62,7 @@ export default function SettingsPaymentProviders() {
     api.providerCatalog.getProviderById,
     appSettings?.paymentProviderId
       ? { providerId: appSettings.paymentProviderId }
-      : "skip"
+      : "skip",
   );
 
   // Load existing credentials into form
@@ -269,123 +269,17 @@ export default function SettingsPaymentProviders() {
         </CardContent>
       </Card>
 
-      {/* Credentials Form */}
-      <form onSubmit={handleSave}>
-        <Card className="border-0 shadow-sm bg-white">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-50 rounded-lg">
-                <CreditCard className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-semibold">
-                  API Credentials
-                </CardTitle>
-                <CardDescription className="text-slate-500">
-                  Update your {selectedProvider.displayName} API keys
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0 space-y-4">
-            {/* Environment */}
-            <PermissionAwareField
-              canEdit={canManageSettings}
-              message={getPermissionMessage(["owner", "admin"])}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="environment">Environment</Label>
-                <Select
-                  value={environment}
-                  onValueChange={(v: any) => setEnvironment(v)}
-                  disabled={!canManageSettings}
-                >
-                  <SelectTrigger id="environment">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="test">Test / Sandbox</SelectItem>
-                    <SelectItem value="live">Live / Production</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-slate-500">
-                  Use test mode for development and live mode for production
-                </p>
-              </div>
-            </PermissionAwareField>
-
-            {/* Secret Key */}
-            <PermissionAwareField
-              canEdit={canManageSettings}
-              message={getPermissionMessage(["owner", "admin"])}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="secretKey">
-                  Secret Key <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="secretKey"
-                  type="password"
-                  placeholder={
-                    existingCredentials ? "••••••••••••••••" : "sk_..."
-                  }
-                  value={secretKey}
-                  onChange={(e) => setSecretKey(e.target.value)}
-                  disabled={!canManageSettings}
-                />
-                <p className="text-xs text-slate-500">
-                  {existingCredentials
-                    ? "Re-enter your secret key to update it"
-                    : `Your API secret key from ${selectedProvider.displayName} dashboard`}
-                </p>
-              </div>
-            </PermissionAwareField>
-
-            {/* Public Key */}
-            <PermissionAwareField
-              canEdit={canManageSettings}
-              message={getPermissionMessage(["owner", "admin"])}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="publicKey">Public Key (Optional)</Label>
-                <Input
-                  id="publicKey"
-                  type="text"
-                  placeholder="pk_..."
-                  value={publicKey}
-                  onChange={(e) => setPublicKey(e.target.value)}
-                  disabled={!canManageSettings}
-                />
-                <p className="text-xs text-slate-500">
-                  Your API public key (if applicable)
-                </p>
-              </div>
-            </PermissionAwareField>
-
-            {/* Save Button */}
-            <div className="flex justify-end pt-4">
-              <Button
-                type="submit"
-                disabled={!canManageSettings || isSaving || !secretKey.trim()}
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {existingCredentials ? "Updating..." : "Saving..."}
-                  </>
-                ) : (
-                  <>
-                    <Save className="mr-2 h-4 w-4" />
-                    {existingCredentials
-                      ? "Update Credentials"
-                      : "Save Credentials"}
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </form>
+      {/* Info: No credentials needed */}
+      <Alert className="border-slate-200 bg-slate-50">
+        <AlertCircle className="h-4 w-4 text-slate-600" />
+        <AlertDescription className="text-slate-700">
+          <span className="font-semibold">Note: </span>
+          CrediBill does not require your {selectedProvider.displayName} API
+          credentials. Your client applications will initiate payments directly
+          using their own credentials. CrediBill only receives webhook
+          notifications to track payment status.
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

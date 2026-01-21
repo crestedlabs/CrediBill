@@ -11,7 +11,7 @@ const http = httpRouter();
 async function authenticateApiKey(
   ctx: any,
   request: Request,
-  requiredScope: string
+  requiredScope: string,
 ) {
   // Get API key from Authorization header
   const authHeader = request.headers.get("Authorization");
@@ -19,7 +19,7 @@ async function authenticateApiKey(
     return {
       error: new Response(
         JSON.stringify({ error: "Missing or invalid Authorization header" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+        { status: 401, headers: { "Content-Type": "application/json" } },
       ),
     };
   }
@@ -37,7 +37,7 @@ async function authenticateApiKey(
         JSON.stringify({
           error: keyValidation.error || "The API key is invalid",
         }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+        { status: 401, headers: { "Content-Type": "application/json" } },
       ),
     };
   }
@@ -47,7 +47,7 @@ async function authenticateApiKey(
     return {
       error: new Response(
         JSON.stringify({ error: `API key lacks ${requiredScope} permissions` }),
-        { status: 403, headers: { "Content-Type": "application/json" } }
+        { status: 403, headers: { "Content-Type": "application/json" } },
       ),
     };
   }
@@ -80,7 +80,7 @@ http.route({
           JSON.stringify({
             error: "Missing required fields: subscriptionId, quantity, metric",
           }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -88,7 +88,7 @@ http.route({
       if (typeof quantity !== "number" || quantity <= 0) {
         return new Response(
           JSON.stringify({ error: "Quantity must be a positive number" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -103,7 +103,7 @@ http.route({
           eventId: eventId || undefined,
           metadata: metadata || undefined,
           appId, // Pass appId for scoping validation
-        }
+        },
       );
 
       // Update API key last used timestamp
@@ -120,13 +120,13 @@ http.route({
         {
           status: result.duplicate ? 200 : 201,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     } catch (error: any) {
       console.error("Error recording usage:", error);
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -157,7 +157,7 @@ http.route({
       if (!email) {
         return new Response(
           JSON.stringify({ error: "Missing required field: email" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -173,7 +173,7 @@ http.route({
           metadata,
           type,
           status,
-        }
+        },
       );
 
       await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -185,7 +185,7 @@ http.route({
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -210,7 +210,7 @@ http.route({
           internal.customers.listCustomersInternal,
           {
             appId,
-          }
+          },
         );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -226,7 +226,7 @@ http.route({
           {
             customerId: customerId as Id<"customers">,
             appId,
-          }
+          },
         );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -239,7 +239,7 @@ http.route({
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -263,7 +263,7 @@ http.route({
           JSON.stringify({
             error: "Missing required fields: customerId, planId",
           }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -274,7 +274,7 @@ http.route({
           customerId,
           planId,
           startDate,
-        }
+        },
       );
 
       await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -286,7 +286,7 @@ http.route({
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -314,7 +314,7 @@ http.route({
           {
             subscriptionId: subscriptionId as Id<"subscriptions">,
             appId,
-          }
+          },
         );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -334,7 +334,7 @@ http.route({
               : undefined,
             planId: planId ? (planId as Id<"plans">) : undefined,
             status: status as any,
-          }
+          },
         );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -347,7 +347,7 @@ http.route({
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -369,7 +369,7 @@ http.route({
       if (!subscriptionId) {
         return new Response(
           JSON.stringify({ error: "Missing subscriptionId parameter" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -386,12 +386,12 @@ http.route({
         {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -423,7 +423,7 @@ http.route({
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -451,7 +451,7 @@ http.route({
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -472,7 +472,7 @@ http.route({
       if (!planId) {
         return new Response(
           JSON.stringify({ error: "Missing planId in request body" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -489,12 +489,12 @@ http.route({
         {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -515,7 +515,7 @@ http.route({
       if (!planId) {
         return new Response(
           JSON.stringify({ error: "Missing planId parameter" }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -531,12 +531,12 @@ http.route({
         {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -565,7 +565,7 @@ http.route({
           {
             invoiceId: invoiceId as Id<"invoices">,
             appId,
-          }
+          },
         );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -587,7 +587,7 @@ http.route({
               ? (subscriptionId as Id<"subscriptions">)
               : undefined,
             status: status as any,
-          }
+          },
         );
 
         await ctx.runMutation(api.apiKeys.updateLastUsed, { apiKeyId });
@@ -610,7 +610,7 @@ http.route({
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -633,7 +633,7 @@ http.route({
           JSON.stringify({
             error: "Missing required fields: invoiceId, status",
           }),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          { status: 400, headers: { "Content-Type": "application/json" } },
         );
       }
 
@@ -652,12 +652,12 @@ http.route({
         {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }
+        },
       );
     } catch (error: any) {
       return new Response(
         JSON.stringify({ error: error.message || "Internal server error" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
   }),
@@ -713,43 +713,11 @@ async function validateRequest(req: Request): Promise<WebhookEvent | null> {
 // ==========================================
 
 /**
- * Flutterwave webhook endpoint
- * Signature: verif-hash header with SHA256 HMAC
- */
-http.route({
-  path: "/webhooks/flutterwave/{appId}",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    const payload = await request.text();
-    const signature = request.headers.get("verif-hash") || "";
-    const appId = request.url.split("/").pop() as Id<"apps">;
-
-    const result = await ctx.runAction(
-      internal.webhookActions.handleFlutterwaveWebhook,
-      {
-        payload,
-        signature,
-        appId,
-      }
-    );
-
-    return new Response(JSON.stringify(result), {
-      status: result.success ? 200 : 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }),
-});
-
-/**
  * PawaPay webhook endpoint (via Cloudflare Worker)
  * Receives forwarded webhooks from Cloudflare Worker at https://api.credibill.tech
  *
- * Expected payload from Worker:
- * {
- *   appId: "j57eddw6wf2c80mfrtwxfzrhbs7y5wsd",
- *   payload: { data: {...}, status: "FOUND" }
- * }
- *
+ 
+ * NOTE: credibill_app_id is now in the body, not as a query parameter
  * Authentication: X-Webhook-Secret header (case-insensitive)
  */
 http.route({
@@ -768,10 +736,11 @@ http.route({
 
       // Parse request body from Cloudflare Worker
       const body = await request.json();
-      const { appId, payload } = body;
 
-      if (!appId || !payload) {
-        console.error("[PawaPay] Missing appId or payload in request body");
+      // appId is now in the body as credibill_app_id
+      // Worker passes through the entire payload from PawaPay
+      if (!body) {
+        console.error("[PawaPay] Missing payload in request body");
         return new Response("Bad Request", { status: 400 });
       }
 
@@ -780,9 +749,8 @@ http.route({
         0,
         internal.webhookActions.handlePawapayWebhook,
         {
-          payload: JSON.stringify(payload),
-          appId: appId as Id<"apps">,
-        }
+          payload: JSON.stringify(body),
+        },
       );
 
       return new Response("OK", { status: 200 });
@@ -790,58 +758,6 @@ http.route({
       console.error("[PawaPay] Error processing webhook:", error);
       return new Response("OK", { status: 200 }); // Still return 200 for Worker
     }
-  }),
-});
-
-/**
- * Pesapal webhook endpoint (IPN)
- * Uses OrderTrackingId and OrderMerchantReference for verification
- */
-http.route({
-  path: "/webhooks/pesapal/{appId}",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    const payload = await request.text();
-    const appId = request.url.split("/").pop() as Id<"apps">;
-
-    const result = await ctx.runAction(
-      internal.webhookActions.handlePesapalWebhook,
-      {
-        payload,
-        appId,
-      }
-    );
-
-    return new Response(JSON.stringify(result), {
-      status: result.success ? 200 : 400,
-      headers: { "Content-Type": "application/json" },
-    });
-  }),
-});
-
-/**
- * DPO webhook endpoint
- * Uses CompanyToken for verification
- */
-http.route({
-  path: "/webhooks/dpo/{appId}",
-  method: "POST",
-  handler: httpAction(async (ctx, request) => {
-    const payload = await request.text();
-    const appId = request.url.split("/").pop() as Id<"apps">;
-
-    const result = await ctx.runAction(
-      internal.webhookActions.handleDpoWebhook,
-      {
-        payload,
-        appId,
-      }
-    );
-
-    return new Response(JSON.stringify(result), {
-      status: result.success ? 200 : 400,
-      headers: { "Content-Type": "application/json" },
-    });
   }),
 });
 

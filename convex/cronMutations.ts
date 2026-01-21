@@ -19,16 +19,14 @@ export const markTrialExpired = internalMutation({
     if (!subscription) return;
 
     // Transition to pending_payment (awaiting first payment)
-    // Set currentPeriodEnd to now so grace period calculation works correctly
-    // Grace period enforcement will move to past_due if no payment within grace period
-    const now = Date.now();
+    // DO NOT set billing period dates - they will be set when payment is received
+    // Billing period starts from PAYMENT date, not trial end date
     await ctx.db.patch(args.subscriptionId, {
       status: "pending_payment",
-      currentPeriodEnd: now, // Grace period starts from now (trial end)
-      nextPaymentDate: now, // Payment due immediately
     });
 
     // Generate invoice for first payment now that trial has ended
+    const now = Date.now();
     await ctx.scheduler.runAfter(0, internal.invoices.generateInvoiceInternal, {
       subscriptionId: args.subscriptionId,
       periodStart: now,

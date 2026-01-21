@@ -1,6 +1,7 @@
 import { query, mutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "./users";
+import { internal } from "./_generated/api";
 
 // Internal query to get an app by ID (no auth check)
 export const get = internalQuery({
@@ -25,7 +26,7 @@ export const getAppById = query({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -58,7 +59,7 @@ export const getUserApps = query({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", targetOrgId).eq("userId", user._id)
+        q.eq("organizationId", targetOrgId).eq("userId", user._id),
       )
       .unique();
 
@@ -87,7 +88,7 @@ export const getAppSettings = query({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -127,19 +128,19 @@ export const createApp = mutation({
       v.literal("kes"),
       v.literal("tzs"),
       v.literal("rwf"),
-      v.literal("usd")
+      v.literal("usd"),
     ),
     timezone: v.optional(
-      v.union(v.literal("eat"), v.literal("cat"), v.literal("wat"))
+      v.union(v.literal("eat"), v.literal("cat"), v.literal("wat")),
     ), // DEPRECATED: May return when timezone-aware billing is implemented
     language: v.union(v.literal("en"), v.literal("sw"), v.literal("fr")),
     defaultPaymentMethod: v.optional(
-      v.union(v.literal("momo"), v.literal("credit-card"), v.literal("bank"))
+      v.union(v.literal("momo"), v.literal("credit-card"), v.literal("bank")),
     ), // DEPRECATED: Use payment provider configuration
     retryPolicy: v.union(
       v.literal("automatic"),
       v.literal("manual"),
-      v.literal("none")
+      v.literal("none"),
     ),
     gracePeriod: v.number(),
   },
@@ -151,19 +152,32 @@ export const createApp = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", args.organizationId).eq("userId", user._id)
+        q.eq("organizationId", args.organizationId).eq("userId", user._id),
       )
       .unique();
 
     if (!membership) {
       throw new Error(
-        "Access denied: You are not a member of this organization"
+        "Access denied: You are not a member of this organization",
       );
     }
 
     // Validate name
     if (!args.name || args.name.trim().length < 3) {
       throw new Error("App name must be at least 3 characters");
+    }
+
+    // Check for duplicate app name in the same organization
+    const existingApp = await ctx.db
+      .query("apps")
+      .withIndex("by_org", (q) => q.eq("organizationId", args.organizationId))
+      .filter((q) => q.eq(q.field("name"), args.name.trim()))
+      .first();
+
+    if (existingApp) {
+      throw new Error(
+        `An app named "${args.name.trim()}" already exists in this organization`,
+      );
     }
 
     // Validate numbers
@@ -187,6 +201,15 @@ export const createApp = mutation({
       gracePeriod: args.gracePeriod, // Recommended: 7 days (industry standard)
     });
 
+    // Asynchronously create Svix application
+    // This runs in the background and won't block app creation
+    ctx.scheduler.runAfter(0, internal.svixApplications.createSvixApp, {
+      appId,
+      appName: args.name.trim(),
+      organizationId: args.organizationId,
+      mode: "test", // Start in test mode by default, matches app mode
+    });
+
     return {
       success: true,
       appId,
@@ -205,21 +228,18 @@ export const updateAppSettings = mutation({
         v.literal("kes"),
         v.literal("tzs"),
         v.literal("rwf"),
-        v.literal("usd")
-      )
+        v.literal("usd"),
+      ),
     ),
     timezone: v.optional(
-      v.union(v.literal("eat"), v.literal("cat"), v.literal("wat"))
+      v.union(v.literal("eat"), v.literal("cat"), v.literal("wat")),
     ),
     language: v.optional(
-      v.union(v.literal("en"), v.literal("sw"), v.literal("fr"))
+      v.union(v.literal("en"), v.literal("sw"), v.literal("fr")),
     ),
     // Billing settings
     defaultPaymentMethod: v.optional(
-      v.union(v.literal("momo"), v.literal("credit-card"), v.literal("bank"))
-    ),
-    retryPolicy: v.optional(
-      v.union(v.literal("automatic"), v.literal("manual"), v.literal("none"))
+      v.union(v.literal("momo"), v.literal("credit-card"), v.literal("bank")),
     ),
     gracePeriod: v.optional(v.number()),
     // Advanced settings
@@ -240,13 +260,13 @@ export const updateAppSettings = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
     if (!membership) {
       throw new Error(
-        "Access denied: You are not a member of this organization"
+        "Access denied: You are not a member of this organization",
       );
     }
 
@@ -267,9 +287,6 @@ export const updateAppSettings = mutation({
     }
     if (args.defaultPaymentMethod !== undefined) {
       updates.defaultPaymentMethod = args.defaultPaymentMethod;
-    }
-    if (args.retryPolicy !== undefined) {
-      updates.retryPolicy = args.retryPolicy;
     }
     if (args.gracePeriod !== undefined) {
       // Validate grace period
@@ -327,13 +344,13 @@ export const updateAppName = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
     if (!membership) {
       throw new Error(
-        "Access denied: You are not a member of this organization"
+        "Access denied: You are not a member of this organization",
       );
     }
 
@@ -350,7 +367,7 @@ export const updateAppName = mutation({
 
     if (existingApp && existingApp._id !== args.appId) {
       throw new Error(
-        "An app with this name already exists in your organization"
+        "An app with this name already exists in your organization",
       );
     }
 
@@ -381,13 +398,13 @@ export const updateAppMode = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
     if (!membership) {
       throw new Error(
-        "Access denied: You are not a member of this organization"
+        "Access denied: You are not a member of this organization",
       );
     }
 
@@ -421,13 +438,13 @@ export const deleteApp = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
     if (!membership) {
       throw new Error(
-        "Access denied: You are not a member of this organization"
+        "Access denied: You are not a member of this organization",
       );
     }
 
@@ -548,6 +565,16 @@ export const deleteApp = mutation({
     // 10. Finally, delete the app itself
     await ctx.db.delete(appId);
 
+    // Asynchronously delete Svix application if it exists
+    // This runs in the background and won't block app deletion
+    if (app.svixAppId) {
+      ctx.scheduler.runAfter(0, internal.svixApplications.deleteSvixApp, {
+        appId,
+        svixAppId: app.svixAppId,
+        mode: app.mode === "test" ? "test" : "live",
+      });
+    }
+
     return {
       success: true,
       message: "App and all associated data deleted successfully",
@@ -571,6 +598,9 @@ export const deleteApp = mutation({
 
 /**
  * Update webhook configuration for an app
+ * @deprecated Use svixEndpoints.configureWebhookEndpoint instead
+ * This function is kept for backward compatibility but will be removed in a future version.
+ * The new Svix-based endpoint management provides better reliability and features.
  */
 export const updateWebhookConfig = mutation({
   args: {
@@ -588,7 +618,7 @@ export const updateWebhookConfig = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 
@@ -600,7 +630,7 @@ export const updateWebhookConfig = mutation({
     if (!webhookSecret || args.webhookUrl !== app.webhookUrl) {
       // Generate a secure random secret
       webhookSecret = `whsec_${Array.from({ length: 32 }, () =>
-        Math.random().toString(36).charAt(2)
+        Math.random().toString(36).charAt(2),
       ).join("")}`;
     }
 
@@ -619,6 +649,9 @@ export const updateWebhookConfig = mutation({
 
 /**
  * Test webhook by sending a test event
+ * @deprecated Use svixEvents.testWebhook (action) instead
+ * This function is kept for backward compatibility but will be removed in a future version.
+ * The new Svix-based webhook testing provides better delivery tracking.
  */
 export const testWebhook = mutation({
   args: {
@@ -643,7 +676,7 @@ export const testWebhook = mutation({
     const membership = await ctx.db
       .query("organizationMembers")
       .withIndex("by_org_user", (q) =>
-        q.eq("organizationId", app.organizationId).eq("userId", user._id)
+        q.eq("organizationId", app.organizationId).eq("userId", user._id),
       )
       .unique();
 

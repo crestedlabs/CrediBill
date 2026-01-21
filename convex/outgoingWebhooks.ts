@@ -6,6 +6,30 @@ import { internal } from "./_generated/api";
 import * as crypto from "crypto";
 
 // ============================================================================
+// DEPRECATION NOTICE
+// ============================================================================
+/**
+ * @deprecated This entire file is deprecated and will be removed in a future version.
+ *
+ * The manual webhook delivery and retry system has been replaced by Svix,
+ * which provides enterprise-grade reliability, automatic retries, and customer-facing
+ * debugging tools.
+ *
+ * NEW SYSTEM:
+ * - Use svixEvents.ts for webhook delivery
+ * - Use webhookTriggers.ts for convenience functions
+ * - Use svixEndpoints.ts for endpoint configuration
+ * - Use svixDashboard.ts for customer dashboard access
+ *
+ * This file is kept for backward compatibility during migration but all new
+ * webhook deliveries should go through Svix. The webhook retry cron job has
+ * been disabled.
+ *
+ * MIGRATION: All webhook calls have been updated to use the new system.
+ * This file can be safely deleted once any in-flight webhook retries are completed.
+ */
+
+// ============================================================================
 // CONFIGURATION
 // ============================================================================
 
@@ -29,7 +53,7 @@ function generateWebhookSignature(payload: string, secret: string): string {
  */
 function createWebhookHeaders(
   payload: string,
-  secret: string
+  secret: string,
 ): Record<string, string> {
   const timestamp = Date.now().toString();
   const signaturePayload = `${timestamp}.${payload}`;
@@ -69,7 +93,7 @@ export const sendWebhook = internalAction({
       const controller = new AbortController();
       const timeoutId = setTimeout(
         () => controller.abort(),
-        WEBHOOK_TIMEOUT_MS
+        WEBHOOK_TIMEOUT_MS,
       );
 
       const response = await fetch(args.url, {
@@ -108,7 +132,7 @@ export const sendWebhook = internalAction({
             httpStatus >= 200 && httpStatus < 300
               ? undefined
               : `HTTP ${httpStatus}: ${JSON.stringify(responseBody)}`,
-        }
+        },
       );
 
       return {
@@ -129,7 +153,7 @@ export const sendWebhook = internalAction({
           status: "failed",
           sentAt: startTime,
           error: errorMessage,
-        }
+        },
       );
 
       return {
@@ -150,7 +174,7 @@ export const retryWebhook = internalAction({
   },
   handler: async (
     ctx,
-    args
+    args,
   ): Promise<{
     success: boolean;
     reason?: string;
@@ -163,7 +187,7 @@ export const retryWebhook = internalAction({
       internal.outgoingWebhookQueries.getWebhookLog,
       {
         webhookLogId: args.webhookLogId,
-      }
+      },
     );
 
     if (!log) {
@@ -173,7 +197,7 @@ export const retryWebhook = internalAction({
     // Check if we should retry
     if (log.attemptNumber >= log.maxAttempts) {
       console.log(
-        `Max retry attempts reached for webhook ${args.webhookLogId}`
+        `Max retry attempts reached for webhook ${args.webhookLogId}`,
       );
       return { success: false, reason: "max_attempts_reached" };
     }
@@ -188,7 +212,7 @@ export const retryWebhook = internalAction({
       internal.outgoingWebhookQueries.getWebhookConfig,
       {
         webhookId: log.webhookId,
-      }
+      },
     );
 
     if (!webhook || webhook.status !== "active") {
@@ -201,7 +225,7 @@ export const retryWebhook = internalAction({
       internal.outgoingWebhookMutations.incrementWebhookAttempt,
       {
         webhookLogId: args.webhookLogId,
-      }
+      },
     );
 
     // Send webhook
@@ -212,7 +236,7 @@ export const retryWebhook = internalAction({
         url: log.url,
         payload: log.payload,
         secret: webhook.secret || "",
-      }
+      },
     );
 
     // Schedule next retry if failed
@@ -245,7 +269,7 @@ export const triggerWebhooks = internalAction({
   },
   handler: async (
     ctx,
-    args
+    args,
   ): Promise<{ triggered: number; successful?: number; failed?: number }> => {
     // Get all active webhooks for this app that are subscribed to this event
     const webhooks: any[] = await ctx.runQuery(
@@ -253,12 +277,12 @@ export const triggerWebhooks = internalAction({
       {
         appId: args.appId,
         event: args.event,
-      }
+      },
     );
 
     if (webhooks.length === 0) {
       console.log(
-        `No active webhooks found for event ${args.event} in app ${args.appId}`
+        `No active webhooks found for event ${args.event} in app ${args.appId}`,
       );
       return { triggered: 0 };
     }
@@ -280,7 +304,7 @@ export const triggerWebhooks = internalAction({
             event: args.event,
             payload: args.payload,
             url: webhook.url,
-          }
+          },
         );
 
         // Send webhook
@@ -291,7 +315,7 @@ export const triggerWebhooks = internalAction({
             url: webhook.url,
             payload: args.payload,
             secret: webhook.secret || "",
-          }
+          },
         );
 
         // Schedule retry if failed
@@ -301,12 +325,12 @@ export const triggerWebhooks = internalAction({
             {
               webhookLogId: logId,
               delayMs: RETRY_DELAYS_MS[0],
-            }
+            },
           );
         }
 
         return result;
-      })
+      }),
     );
 
     const successful = results.filter((r) => r.success).length;

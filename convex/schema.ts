@@ -19,7 +19,7 @@ export default defineSchema({
     // Billing configuration
     billingMode: v.union(
       v.literal("auto"), // Automatic charge/retry
-      v.literal("manual") // Manual invoice payment
+      v.literal("manual"), // Manual invoice payment
     ),
 
     // Geographic availability (ISO 3166-1 alpha-2 country codes)
@@ -55,7 +55,7 @@ export default defineSchema({
       v.literal("owner"),
       v.literal("admin"),
       v.literal("member"),
-      v.literal("viewer")
+      v.literal("viewer"),
     ),
   })
     .index("by_org", ["organizationId"])
@@ -80,7 +80,7 @@ export default defineSchema({
     status: v.union(
       v.literal("active"),
       v.literal("paused"),
-      v.literal("archived")
+      v.literal("archived"),
     ),
     mode: v.optional(v.union(v.literal("live"), v.literal("test"))),
 
@@ -94,12 +94,12 @@ export default defineSchema({
       v.literal("kes"),
       v.literal("tzs"),
       v.literal("rwf"),
-      v.literal("usd")
+      v.literal("usd"),
     ),
     timezone: v.union(
       v.literal("eat"), // East Africa Time (GMT+3)
       v.literal("cat"), // Central Africa Time (GMT+2)
-      v.literal("wat") // West Africa Time (GMT+1)
+      v.literal("wat"), // West Africa Time (GMT+1)
     ),
     language: v.union(v.literal("en"), v.literal("sw"), v.literal("fr")),
 
@@ -107,12 +107,12 @@ export default defineSchema({
     defaultPaymentMethod: v.union(
       v.literal("momo"),
       v.literal("credit-card"),
-      v.literal("bank")
+      v.literal("bank"),
     ),
     retryPolicy: v.union(
       v.literal("automatic"),
       v.literal("manual"),
-      v.literal("none")
+      v.literal("none"),
     ),
 
     // Billing settings (required with defaults)
@@ -124,9 +124,13 @@ export default defineSchema({
     enableProration: v.optional(v.boolean()), // default true
     autoSuspendOnFailedPayment: v.optional(v.boolean()), // default true
 
-    // Webhook configuration
-    webhookUrl: v.optional(v.string()),
-    webhookSecret: v.optional(v.string()),
+    // Legacy webhook configuration (DEPRECATED - use Svix endpoints instead)
+    // These fields are kept for backward compatibility but are superseded by Svix
+    webhookUrl: v.optional(v.string()), // @deprecated Use webhooks table with Svix endpoints
+    webhookSecret: v.optional(v.string()), // @deprecated Svix generates and manages secrets
+
+    // Svix integration (CURRENT)
+    svixAppId: v.optional(v.string()), // Svix application ID for webhook management
   })
     .index("by_org", ["organizationId"])
     .index("by_status", ["status"]),
@@ -143,8 +147,11 @@ export default defineSchema({
     metadata: v.optional(v.any()),
     type: v.optional(v.union(v.literal("individual"), v.literal("business"))),
     status: v.optional(
-      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked"))
+      v.union(v.literal("active"), v.literal("inactive"), v.literal("blocked")),
     ),
+    // Trial tracking - prevent trial abuse
+    hasUsedTrial: v.optional(v.boolean()), // Has customer ever used a trial period?
+    firstTrialDate: v.optional(v.number()), // Timestamp when customer first used a trial
   })
     .index("by_org", ["organizationId"])
     .index("by_app", ["appId"])
@@ -164,7 +171,7 @@ export default defineSchema({
     pricingModel: v.union(
       v.literal("flat"),
       v.literal("usage"),
-      v.literal("hybrid")
+      v.literal("hybrid"),
     ),
     baseAmount: v.optional(v.number()), // smallest unit
     currency: v.union(
@@ -172,13 +179,13 @@ export default defineSchema({
       v.literal("KES"),
       v.literal("RWF"),
       v.literal("TZS"),
-      v.literal("USD")
+      v.literal("USD"),
     ),
     interval: v.union(
       v.literal("monthly"),
       v.literal("quarterly"),
       v.literal("yearly"),
-      v.literal("one-time")
+      v.literal("one-time"),
     ),
     trialDays: v.optional(v.number()), // Plan-specific trial period (0 = no trial)
     usageMetric: v.optional(v.string()), // e.g. "api_calls", "messages"
@@ -215,7 +222,7 @@ export default defineSchema({
     status: v.union(
       v.literal("pending"),
       v.literal("success"),
-      v.literal("failed")
+      v.literal("failed"),
     ),
     responseStatus: v.optional(v.number()), // HTTP status code
     responseBody: v.optional(v.string()),
@@ -241,28 +248,26 @@ export default defineSchema({
       v.literal("pending_payment"), // Awaiting first payment
       v.literal("paused"),
       v.literal("cancelled"),
-      v.literal("expired"),
-      v.literal("past_due") // Added for failed payments
+      v.literal("past_due"), // Added for failed payments
     ),
-    startDate: v.number(),
-    currentPeriodStart: v.number(),
-    currentPeriodEnd: v.number(),
+    startDate: v.optional(v.number()), // Only set when trial active or payment received
+    currentPeriodStart: v.optional(v.number()), // Only set when billing period starts
+    currentPeriodEnd: v.optional(v.number()), // Only set when billing period starts
     cancelAtPeriodEnd: v.optional(v.boolean()),
     usageQuantity: v.optional(v.number()), // aggregated from usageEvents or usageSummaries
     usageAmount: v.optional(v.number()), // computed charge
 
     // Payment tracking fields
-    nextPaymentDate: v.optional(v.number()), // When next payment is due
     lastPaymentDate: v.optional(v.number()), // Last successful payment
     trialEndsAt: v.optional(v.number()), // Trial expiration timestamp
     failedPaymentAttempts: v.optional(v.number()), // Count of failed payments
+    nextPaymentDate: v.optional(v.number()), // DEPRECATED: Legacy field, use currentPeriodEnd instead
   })
     .index("by_customer", ["customerId"])
     .index("by_app", ["appId"])
     .index("by_plan", ["planId"])
     .index("by_status", ["status"])
     .index("by_customer_plan", ["customerId", "planId"])
-    .index("by_next_payment", ["nextPaymentDate"])
     .index("by_trial_end", ["trialEndsAt"]),
 
   //Invoices Table
@@ -280,7 +285,7 @@ export default defineSchema({
       v.literal("open"),
       v.literal("paid"),
       v.literal("failed"),
-      v.literal("void")
+      v.literal("void"),
     ),
     periodStart: v.number(),
     periodEnd: v.number(),
@@ -295,9 +300,9 @@ export default defineSchema({
         type: v.union(
           v.literal("plan"),
           v.literal("usage"),
-          v.literal("one_time")
+          v.literal("one_time"),
         ),
-      })
+      }),
     ),
   })
     .index("by_customer", ["customerId"])
@@ -335,6 +340,9 @@ export default defineSchema({
     status: v.union(v.literal("active"), v.literal("inactive")),
     secret: v.optional(v.string()), // For webhook signature verification
     description: v.optional(v.string()),
+
+    // Svix integration
+    svixEndpointId: v.optional(v.string()), // Svix endpoint ID for this webhook
   })
     .index("by_app", ["appId"])
     .index("by_org", ["organizationId"])
@@ -387,7 +395,7 @@ export default defineSchema({
     connectionStatus: v.union(
       v.literal("connected"),
       v.literal("error"),
-      v.literal("pending")
+      v.literal("pending"),
     ),
     lastConnectionTest: v.optional(v.number()),
     lastError: v.optional(v.string()),
@@ -429,7 +437,7 @@ export default defineSchema({
       v.literal("card_visa"),
       v.literal("card_mastercard"),
       v.literal("bank_transfer"),
-      v.literal("other")
+      v.literal("other"),
     ),
 
     // Customer payment details (phone, card token, etc.)
@@ -438,7 +446,7 @@ export default defineSchema({
         phone: v.optional(v.string()),
         cardLast4: v.optional(v.string()),
         accountNumber: v.optional(v.string()),
-      })
+      }),
     ),
 
     // Transaction status
@@ -449,7 +457,7 @@ export default defineSchema({
       v.literal("success"),
       v.literal("failed"),
       v.literal("canceled"),
-      v.literal("refunded")
+      v.literal("refunded"),
     ),
 
     // Failure details
@@ -495,7 +503,7 @@ export default defineSchema({
       v.literal("dpo"),
       v.literal("paystack"),
       v.literal("stripe"),
-      v.literal("clerk") // For user webhooks
+      v.literal("clerk"), // For user webhooks
     ),
 
     // Webhook data
@@ -512,7 +520,7 @@ export default defineSchema({
       v.literal("processing"),
       v.literal("processed"),
       v.literal("failed"),
-      v.literal("ignored")
+      v.literal("ignored"),
     ),
 
     // Processing details
@@ -553,10 +561,10 @@ export default defineSchema({
       v.literal("sent"),
       v.literal("delivered"),
       v.literal("failed"),
-      v.literal("retrying")
+      v.literal("retrying"),
     ),
 
-    // Retry tracking
+    // Retry tracking (kept for backward compatibility, but Svix handles retries)
     attemptNumber: v.number(),
     maxAttempts: v.number(),
     nextRetryAt: v.optional(v.number()),
@@ -568,6 +576,9 @@ export default defineSchema({
     createdAt: v.number(),
     sentAt: v.optional(v.number()),
     deliveredAt: v.optional(v.number()),
+
+    // Svix integration
+    svixMessageId: v.optional(v.string()), // Svix message ID for tracking delivery
   })
     .index("by_app", ["appId"])
     .index("by_webhook", ["webhookId"])
